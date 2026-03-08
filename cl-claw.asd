@@ -9,4 +9,5 @@
                   :components
                   ((:file "binaries")
                    (:file "retry")
-                   (:file "abort-signal")))))))
+                   (:file "abort-signal")
+                   (:file "env")))))))
