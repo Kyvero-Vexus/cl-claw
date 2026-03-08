@@ -85,6 +85,10 @@
                   :components
                   ((:file "install-spec")
                    (:file "core")))
+                 (:module "commands"
+                  :depends-on ("cli" "agents")
+                  :components
+                  ((:file "core")))
                  (:module "security"
                   :depends-on ("infra" "config")
                   :components
