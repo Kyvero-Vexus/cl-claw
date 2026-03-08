@@ -72,7 +72,10 @@
                 ((:file "fiveam-media.test")))
                (:module "tests/cl-adapted/src/plugins"
                 :components
-                ((:file "fiveam-plugins.test"))))
+                ((:file "fiveam-plugins.test")))
+               (:module "tests/cl-adapted/src/browser"
+                :components
+                ((:file "fiveam-browser.test"))))
   :perform (asdf:test-op (op c)
              (flet ((run-suite (suite-sym pkg-name)
                       (let ((suite (find-symbol (string-upcase suite-sym)
@@ -112,4 +115,5 @@
                (run-suite "markdown-suite" :cl-claw.markdown.test)
                (run-suite "hooks-suite" :cl-claw.hooks.test)
                (run-suite "media-suite" :cl-claw.media.test)
-               (run-suite "plugins-suite" :cl-claw.plugins.test))))
+               (run-suite "plugins-suite" :cl-claw.plugins.test)
+               (run-suite "browser-suite" :cl-claw.browser.test))))

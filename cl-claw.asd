@@ -109,6 +109,10 @@
                   :depends-on ("hooks" "media" "security")
                   :components
                   ((:file "core")))
+                 (:module "browser"
+                  :depends-on ("plugins" "daemon" "channels")
+                  :components
+                  ((:file "core")))
                  (:module "security"
                   :depends-on ("infra" "config")
                   :components
