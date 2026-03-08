@@ -48,7 +48,8 @@
                 ((:file "fiveam-cron.test")))
                (:module "tests/cl-adapted/src/channels"
                 :components
-                ((:file "fiveam-channels.test")))
+                ((:file "fiveam-channels.test")
+                 (:file "fiveam-imessage.test")))
                (:module "tests/cl-adapted/src/security"
                 :components
                 ((:file "fiveam-security.test")))
@@ -111,6 +112,7 @@
                (run-suite "memory-suite" :cl-claw.memory.test)
                (run-suite "cron-suite" :cl-claw.cron.test)
                (run-suite "channels-suite" :cl-claw.channels.test)
+               (run-suite "channels-imessage-suite" :cl-claw.channels.imessage.test)
                (run-suite "security-suite" :cl-claw.security.test)
                (run-suite "agents-suite" :cl-claw.agents.test)
                (run-suite "cli-suite" :cl-claw.cli.test)

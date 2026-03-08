@@ -77,7 +77,8 @@
                    (:file "irc")
                    (:file "discord")
                    (:file "signal")
-                   (:file "slack")))
+                   (:file "slack")
+                   (:file "imessage")))
                  (:module "agents"
                   :depends-on ("infra" "config" "sessions" "routing" "providers" "memory" "channels" "security")
                   :components
