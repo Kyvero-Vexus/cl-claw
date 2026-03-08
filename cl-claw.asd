@@ -66,6 +66,10 @@
                   :depends-on ("providers")
                   :components
                   ((:file "core")))
+                 (:module "cron"
+                  :depends-on ("infra")
+                  :components
+                  ((:file "core")))
                  (:module "channels"
                   :depends-on ("routing" "sessions" "providers" "memory")
                   :components

@@ -43,6 +43,9 @@
                (:module "tests/cl-adapted/src/memory"
                 :components
                 ((:file "fiveam-memory.test")))
+               (:module "tests/cl-adapted/src/cron"
+                :components
+                ((:file "fiveam-cron.test")))
                (:module "tests/cl-adapted/src/channels"
                 :components
                 ((:file "fiveam-channels.test")))
@@ -106,6 +109,7 @@
                (run-suite "routing-suite" :cl-claw.routing.test)
                (run-suite "providers-suite" :cl-claw.providers.test)
                (run-suite "memory-suite" :cl-claw.memory.test)
+               (run-suite "cron-suite" :cl-claw.cron.test)
                (run-suite "channels-suite" :cl-claw.channels.test)
                (run-suite "security-suite" :cl-claw.security.test)
                (run-suite "agents-suite" :cl-claw.agents.test)
