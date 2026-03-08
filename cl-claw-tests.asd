@@ -66,7 +66,10 @@
                 ((:file "fiveam-markdown.test")))
                (:module "tests/cl-adapted/src/hooks"
                 :components
-                ((:file "fiveam-hooks.test"))))
+                ((:file "fiveam-hooks.test")))
+               (:module "tests/cl-adapted/src/media"
+                :components
+                ((:file "fiveam-media.test"))))
   :perform (asdf:test-op (op c)
              (flet ((run-suite (suite-sym pkg-name)
                       (let ((suite (find-symbol (string-upcase suite-sym)
@@ -104,4 +107,5 @@
                (run-suite "commands-suite" :cl-claw.commands.test)
                (run-suite "daemon-suite" :cl-claw.daemon.test)
                (run-suite "markdown-suite" :cl-claw.markdown.test)
-               (run-suite "hooks-suite" :cl-claw.hooks.test))))
+               (run-suite "hooks-suite" :cl-claw.hooks.test)
+               (run-suite "media-suite" :cl-claw.media.test))))
