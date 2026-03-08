@@ -74,6 +74,12 @@
                    (:file "discord")
                    (:file "signal")
                    (:file "slack")))
+                 (:module "agents"
+                  :depends-on ("infra" "config" "sessions" "routing" "providers" "memory" "channels" "security")
+                  :components
+                  ((:file "core")
+                   (:file "sandbox-bind-spec")
+                   (:file "apply-patch")))
                  (:module "security"
                   :depends-on ("infra" "config")
                   :components
