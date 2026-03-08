@@ -97,6 +97,10 @@
                   :depends-on ("channels")
                   :components
                   ((:file "core")))
+                 (:module "hooks"
+                  :depends-on ("routing" "channels")
+                  :components
+                  ((:file "core")))
                  (:module "security"
                   :depends-on ("infra" "config")
                   :components
