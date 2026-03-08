@@ -1,0 +1,103 @@
+;;;; core.lisp — plugin manifest loading and hook wiring metadata
+
+(defpackage :cl-claw.plugins
+  (:use :cl)
+  (:export
+   :load-plugin-manifest-file
+   :validate-plugin-manifest
+   :discover-plugin-manifests
+   :build-plugin-registry
+   :register-plugin-hooks))
+
+(in-package :cl-claw.plugins)
+
+(declaim (optimize (safety 3) (debug 3)))
+
+(declaim (ftype (function (string) hash-table) load-plugin-manifest-file))
+(defun load-plugin-manifest-file (path)
+  (declare (type string path))
+  (with-open-file (in path :direction :input)
+    (let ((parsed (yason:parse in :object-as :hash-table :object-key-fn #'identity)))
+      (declare (type t parsed))
+      (if (hash-table-p parsed)
+          parsed
+          (error "Plugin manifest is not a JSON object: ~a" path)))))
+
+(declaim (ftype (function (hash-table) hash-table) validate-plugin-manifest))
+(defun validate-plugin-manifest (manifest)
+  (declare (type hash-table manifest))
+  (let ((result (make-hash-table :test 'equal)))
+    (declare (type hash-table result))
+    (labels ((required-string (key)
+               (let ((value (gethash key manifest)))
+                 (declare (type t value))
+                 (and (stringp value) (not (string= value "")))))
+             (required-list (key)
+               (let ((value (gethash key manifest)))
+                 (declare (type t value))
+                 (listp value))))
+      (setf (gethash "name" result) (required-string "name")
+            (gethash "version" result) (required-string "version")
+            (gethash "main" result) (required-string "main")
+            (gethash "hooks" result) (required-list "hooks"))
+      (setf (gethash "valid" result)
+            (and (gethash "name" result)
+                 (gethash "version" result)
+                 (gethash "main" result)
+                 (gethash "hooks" result)))
+      result)))
+
+(declaim (ftype (function (string) list) discover-plugin-manifests))
+(defun discover-plugin-manifests (plugins-dir)
+  (declare (type string plugins-dir))
+  (let* ((base (uiop:ensure-directory-pathname plugins-dir))
+         (children (uiop:subdirectories base))
+         (paths nil))
+    (declare (type pathname base)
+             (type list children paths))
+    (dolist (dir children)
+      (let ((candidate (merge-pathnames "plugin.json" dir)))
+        (when (probe-file candidate)
+          (push (namestring candidate) paths))))
+    (nreverse paths)))
+
+(declaim (ftype (function (list) hash-table) build-plugin-registry))
+(defun build-plugin-registry (manifests)
+  (declare (type list manifests))
+  (let ((registry (make-hash-table :test 'equal)))
+    (declare (type hash-table registry))
+    (dolist (manifest manifests)
+      (unless (hash-table-p manifest)
+        (error "Expected manifest hash-table"))
+      (let ((name (gethash "name" manifest)))
+        (declare (type t name))
+        (unless (and (stringp name) (not (string= name "")))
+          (error "Manifest missing name"))
+        (setf (gethash name registry) manifest)))
+    registry))
+
+(declaim (ftype (function (hash-table hash-table) list) register-plugin-hooks))
+(defun register-plugin-hooks (manifest hook-registry)
+  (declare (type hash-table manifest hook-registry))
+  (let ((registrations nil)
+        (plugin-name (gethash "name" manifest))
+        (hooks (gethash "hooks" manifest)))
+    (declare (type t plugin-name hooks)
+             (type list registrations))
+    (unless (stringp plugin-name)
+      (error "Plugin manifest missing name"))
+    (dolist (hook hooks)
+      (unless (hash-table-p hook)
+        (error "Hook entry must be object"))
+      (let ((event (gethash "event" hook))
+            (handler (gethash "handler" hook)))
+        (declare (type t event handler))
+        (unless (and (stringp event) (stringp handler))
+          (error "Hook entry missing event/handler"))
+        (push (list :plugin plugin-name :event event :handler handler) registrations)
+        (cl-claw.hooks:register-hook-handler
+         hook-registry
+         event
+         (lambda (payload)
+           (list :plugin plugin-name :handler handler :payload payload)))))
+    (nreverse registrations)))
