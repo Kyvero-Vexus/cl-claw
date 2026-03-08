@@ -1,0 +1,2 @@
+cl-claw.asd
+cl-claw-tests.asd

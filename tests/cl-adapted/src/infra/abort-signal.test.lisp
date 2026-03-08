@@ -1,41 +1,38 @@
-;;;; Common Lisp–adapted test source
-;;;;
-;;;; This file is a near-literal adaptation of an upstream OpenClaw test file.
-;;;; It is intentionally not yet idiomatic Lisp. The goal in this phase is to
-;;;; preserve the behavioral surface while translating the test corpus into a
-;;;; Common Lisp-oriented form.
-;;;;
-;;;; Expected test environment:
-;;;; - statically typed Common Lisp project policy
-;;;; - FiveAM or Parachute-style test runner
-;;;; - ordinary CL code plus explicit compatibility shims/macros where needed
+(defpackage :cl-claw.infra.abort-signal.test
+  (:use :cl :fiveam))
+(in-package :cl-claw.infra.abort-signal.test)
 
-import { describe, expect, it } from "FiveAM/Parachute";
-import { waitForAbortSignal } from "./abort-signal.js";
+(def-suite abort-signal-suite)
+(in-suite abort-signal-suite)
 
-(deftest-group "waitForAbortSignal", () => {
-  (deftest "resolves immediately when signal is missing", async () => {
-    await (expect* waitForAbortSignal(undefined)).resolves.toBeUndefined();
-  });
+(test resolves-immediately-when-signal-is-missing
+  "Resolves immediately when signal is missing"
+  (let ((result (cl-claw.infra.abort-signal:wait-for-abort-signal nil)))
+    (is (eq result :ok))))
 
-  (deftest "resolves immediately when signal is already aborted", async () => {
-    const abort = new AbortController();
-    abort.abort();
-    await (expect* waitForAbortSignal(abort.signal)).resolves.toBeUndefined();
-  });
+(test resolves-immediately-when-signal-is-already-aborted
+  "Resolves immediately when signal is already aborted"
+  (let ((controller (cl-claw.infra.abort-signal:make-abort-controller)))
+    (cl-claw.infra.abort-signal:trigger-abort controller)
+    (let ((result (cl-claw.infra.abort-signal:wait-for-abort-signal
+                   (cl-claw.infra.abort-signal:abort-controller-signal controller))))
+      (is (eq result :ok)))))
 
-  (deftest "waits until abort fires", async () => {
-    const abort = new AbortController();
-    let resolved = false;
-
-    const task = waitForAbortSignal(abort.signal).then(() => {
-      resolved = true;
-    });
-    await Promise.resolve();
-    (expect* resolved).is(false);
-
-    abort.abort();
-    await task;
-    (expect* resolved).is(true);
-  });
-});
+(test waits-until-abort-fires
+  "Waits until abort fires"
+  (let ((controller (cl-claw.infra.abort-signal:make-abort-controller))
+        (resolved nil))
+    ;; Start waiting in a separate thread
+    (sb-thread:make-thread
+     (lambda ()
+       (cl-claw.infra.abort-signal:wait-for-abort-signal
+        (cl-claw.infra.abort-signal:abort-controller-signal controller))
+       (setf resolved t)))
+    ;; Give it a moment to start
+    (sleep 0.05)
+    (is (eq resolved nil))
+    ;; Abort the signal
+    (cl-claw.infra.abort-signal:trigger-abort controller)
+    ;; Wait for the thread to complete
+    (sleep 0.1)
+    (is (eq resolved t))))

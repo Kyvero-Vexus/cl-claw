@@ -8,4 +8,5 @@
                 ((:module "infra"
                   :components
                   ((:file "binaries")
-                   (:file "retry")))))))
+                   (:file "retry")
+                   (:file "abort-signal")))))))
