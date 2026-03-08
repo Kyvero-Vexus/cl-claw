@@ -93,6 +93,10 @@
                   :depends-on ("commands" "cli")
                   :components
                   ((:file "core")))
+                 (:module "markdown"
+                  :depends-on ("channels")
+                  :components
+                  ((:file "core")))
                  (:module "security"
                   :depends-on ("infra" "config")
                   :components
