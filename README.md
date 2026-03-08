@@ -1,32 +1,45 @@
 # cl-claw
 
-Extracted specifications for OpenClaw, derived from the source tree at `~/openclaw`.
+Common Lisp–adapted specification corpus for OpenClaw.
 
-This repo is meant to be a practical specification corpus for a Common Lisp reimplementation effort:
+This repository starts from an extracted OpenClaw spec corpus and rewrites it so
+that Common Lisp is the only implementation language assumed by the specs,
+without simplifying the underlying behavior.
 
-- product/docs surface
-- exact code-level spec modules
-- behavioral test specs
-- source manifest and provenance
+## What this repo contains
+
+### Raw extracted corpus
+- `specs/docs-index.md`
+- `specs/code-spec-files.md`
+- `specs/test-specs.md`
+- `specs/test-specs-by-domain.md`
+- `specs/source-manifest.json`
+
+### Common Lisp–adapted corpus
+- `specs/cl-adapted/runtime-adaptation-spec.md`
+- `specs/cl-adapted/docs-index.common-lisp.md`
+- `specs/cl-adapted/code-spec-files.common-lisp.md`
+- `specs/cl-adapted/test-specs.common-lisp.md`
+- `specs/cl-adapted/test-specs-by-domain.common-lisp.md`
+- `specs/common-lisp-library-substitutions.md`
+
+## Adaptation rules
+
+- Preserve behavior.
+- Replace Node/TypeScript assumptions with Common Lisp assumptions.
+- When upstream specs imply concrete libraries, use the closest Common Lisp
+  substitute.
+- Where no strong pure-CL equivalent exists, permit a narrow external helper
+  while keeping control and semantics in Common Lisp.
+- Do not simplify in this phase.
 
 ## Source provenance
 
 See `specs/source-manifest.json`.
 
-## Generated artifacts
-
-- `specs/docs-index.md` — documentation/spec surface discovered from `docs/`
-- `specs/code-spec-files.md` — exact `*spec.ts` files and their contents
-- `specs/test-specs.md` — extracted test titles grouped by file
-- `specs/test-specs-by-domain.md` — same tests grouped by top-level subsystem
-- `specs/source-manifest.json` — source commit, counts, and file inventory
-
 ## Regeneration
 
 ```bash
 node scripts/extract-specs.mjs ~/openclaw
+python3 scripts/adapt-specs-to-common-lisp.py
 ```
-
-## Notes
-
-This is an extraction repo, not a verbatim mirror. It intentionally favors auditable, structured spec artifacts over copying the full upstream codebase.
