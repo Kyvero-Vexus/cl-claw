@@ -31,6 +31,21 @@
                (:module "tests/cl-adapted/src/secrets"
                 :components
                 ((:file "fiveam-secrets.test")))
+               (:module "tests/cl-adapted/src/sessions"
+                :components
+                ((:file "fiveam-sessions.test")))
+               (:module "tests/cl-adapted/src/routing"
+                :components
+                ((:file "fiveam-routing.test")))
+               (:module "tests/cl-adapted/src/providers"
+                :components
+                ((:file "fiveam-providers.test")))
+               (:module "tests/cl-adapted/src/memory"
+                :components
+                ((:file "fiveam-memory.test")))
+               (:module "tests/cl-adapted/src/channels"
+                :components
+                ((:file "fiveam-channels.test")))
                (:module "tests/cl-adapted/src/security"
                 :components
                 ((:file "fiveam-security.test"))))
@@ -60,4 +75,9 @@
                (run-suite "logging-suite" :cl-claw.logging.test)
                (run-suite "config-suite" :cl-claw.config.test)
                (run-suite "secrets-suite" :cl-claw.secrets.test)
+               (run-suite "sessions-suite" :cl-claw.sessions.test)
+               (run-suite "routing-suite" :cl-claw.routing.test)
+               (run-suite "providers-suite" :cl-claw.providers.test)
+               (run-suite "memory-suite" :cl-claw.memory.test)
+               (run-suite "channels-suite" :cl-claw.channels.test)
                (run-suite "security-suite" :cl-claw.security.test))))

@@ -48,6 +48,32 @@
                   ((:file "storage")
                    (:file "resolve" :depends-on ("storage"))
                    (:file "audit")))
+                 (:module "sessions"
+                  :depends-on ("infra" "config")
+                  :components
+                  ((:file "store")
+                   (:file "transcript" :depends-on ("store"))
+                   (:file "compaction" :depends-on ("transcript"))))
+                 (:module "routing"
+                  :depends-on ("sessions")
+                  :components
+                  ((:file "core")))
+                 (:module "providers"
+                  :depends-on ("routing")
+                  :components
+                  ((:file "core")))
+                 (:module "memory"
+                  :depends-on ("providers")
+                  :components
+                  ((:file "core")))
+                 (:module "channels"
+                  :depends-on ("routing" "sessions" "providers" "memory")
+                  :components
+                  ((:file "telegram")
+                   (:file "irc")
+                   (:file "discord")
+                   (:file "signal")
+                   (:file "slack")))
                  (:module "security"
                   :depends-on ("infra" "config")
                   :components
