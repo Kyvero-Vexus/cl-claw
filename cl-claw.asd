@@ -89,6 +89,10 @@
                   :depends-on ("cli" "agents")
                   :components
                   ((:file "core")))
+                 (:module "daemon"
+                  :depends-on ("commands" "cli")
+                  :components
+                  ((:file "core")))
                  (:module "security"
                   :depends-on ("infra" "config")
                   :components
