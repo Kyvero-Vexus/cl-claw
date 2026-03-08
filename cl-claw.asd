@@ -80,6 +80,11 @@
                   ((:file "core")
                    (:file "sandbox-bind-spec")
                    (:file "apply-patch")))
+                 (:module "cli"
+                  :depends-on ("infra" "config" "agents")
+                  :components
+                  ((:file "install-spec")
+                   (:file "core")))
                  (:module "security"
                   :depends-on ("infra" "config")
                   :components

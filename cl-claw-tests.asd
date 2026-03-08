@@ -51,7 +51,10 @@
                 ((:file "fiveam-security.test")))
                (:module "tests/cl-adapted/src/agents"
                 :components
-                ((:file "fiveam-agents.test"))))
+                ((:file "fiveam-agents.test")))
+               (:module "tests/cl-adapted/src/cli"
+                :components
+                ((:file "fiveam-cli.test"))))
   :perform (asdf:test-op (op c)
              (flet ((run-suite (suite-sym pkg-name)
                       (let ((suite (find-symbol (string-upcase suite-sym)
@@ -84,4 +87,5 @@
                (run-suite "memory-suite" :cl-claw.memory.test)
                (run-suite "channels-suite" :cl-claw.channels.test)
                (run-suite "security-suite" :cl-claw.security.test)
-               (run-suite "agents-suite" :cl-claw.agents.test))))
+               (run-suite "agents-suite" :cl-claw.agents.test)
+               (run-suite "cli-suite" :cl-claw.cli.test))))
