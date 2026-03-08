@@ -2,7 +2,7 @@
   :description "OpenClaw Common Lisp Port"
   :author "Chrysolambda"
   :license "MIT"
-  :depends-on (#:uiop #:cl-ppcre)
+  :depends-on (#:uiop #:cl-ppcre #:bordeaux-threads #:local-time #:yason #:ironclad)
   :components ((:module "src"
                 :components
                 ((:module "infra"
@@ -20,4 +20,38 @@
                    (:file "tailnet")
                    (:file "voicewake")
                    (:file "fs-safe")
-                   (:file "net")))))))
+                   (:file "net")))
+                 (:module "process"
+                  :depends-on ("infra")
+                  :components
+                  ((:file "command-queue")
+                   (:file "exec")
+                   (:file "kill-tree")
+                   (:file "spawn-utils")
+                   (:file "supervisor")))
+                 (:module "logging"
+                  :depends-on ("infra")
+                  :components
+                  ((:file "timestamps")
+                   (:file "redact")
+                   (:file "logger" :depends-on ("timestamps"))))
+                 (:module "config"
+                  :depends-on ("infra" "logging")
+                  :components
+                  ((:file "schema")
+                   (:file "validation")
+                   (:file "io" :depends-on ("schema" "validation"))
+                   (:file "runtime")))
+                 (:module "secrets"
+                  :depends-on ("infra" "process" "config")
+                  :components
+                  ((:file "storage")
+                   (:file "resolve" :depends-on ("storage"))
+                   (:file "audit")))
+                 (:module "security"
+                  :depends-on ("infra" "config")
+                  :components
+                  ((:file "ssrf")
+                   (:file "safe-bin")
+                   (:file "external-content")
+                   (:file "audit" :depends-on ("ssrf"))))))))

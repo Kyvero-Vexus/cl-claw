@@ -18,13 +18,29 @@
                  (:file "fiveam-tailnet.test")
                  (:file "fiveam-voicewake.test")
                  (:file "fiveam-fs-safe.test")
-                 (:file "fiveam-net.test"))))
+                 (:file "fiveam-net.test")))
+               (:module "tests/cl-adapted/src/process"
+                :components
+                ((:file "fiveam-process.test")))
+               (:module "tests/cl-adapted/src/logging"
+                :components
+                ((:file "fiveam-logging.test")))
+               (:module "tests/cl-adapted/src/config"
+                :components
+                ((:file "fiveam-config.test")))
+               (:module "tests/cl-adapted/src/secrets"
+                :components
+                ((:file "fiveam-secrets.test")))
+               (:module "tests/cl-adapted/src/security"
+                :components
+                ((:file "fiveam-security.test"))))
   :perform (asdf:test-op (op c)
              (flet ((run-suite (suite-sym pkg-name)
                       (let ((suite (find-symbol (string-upcase suite-sym)
                                                 (find-package pkg-name))))
                         (when suite
                           (symbol-call :fiveam :run! suite)))))
+               ;; Infra domain (existing)
                (run-suite "binaries-suite" :cl-claw.infra.binaries.test)
                (run-suite "retry-suite" :cl-claw.infra.retry.test)
                (run-suite "abort-signal-suite" :cl-claw.infra.abort-signal.test)
@@ -38,4 +54,10 @@
                (run-suite "tailnet-suite" :cl-claw.infra.tailnet.test)
                (run-suite "voicewake-suite" :cl-claw.infra.voicewake.test)
                (run-suite "fs-safe-suite" :cl-claw.infra.fs-safe.test)
-               (run-suite "net-suite" :cl-claw.infra.net.test))))
+               (run-suite "net-suite" :cl-claw.infra.net.test)
+               ;; P0 domains (new)
+               (run-suite "process-suite" :cl-claw.process.test)
+               (run-suite "logging-suite" :cl-claw.logging.test)
+               (run-suite "config-suite" :cl-claw.config.test)
+               (run-suite "secrets-suite" :cl-claw.secrets.test)
+               (run-suite "security-suite" :cl-claw.security.test))))
