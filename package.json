@@ -1,0 +1,8 @@
+{
+  "name": "cl-claw",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "extract": "node scripts/extract-specs.mjs ~/openclaw"
+  }
+}
