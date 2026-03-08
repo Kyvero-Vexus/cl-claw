@@ -1,0 +1,240 @@
+;;;; Common Lisp–adapted test source
+;;;;
+;;;; This file is a near-literal adaptation of an upstream OpenClaw test file.
+;;;; It is intentionally not yet idiomatic Lisp. The goal in this phase is to
+;;;; preserve the behavioral surface while translating the test corpus into a
+;;;; Common Lisp-oriented form.
+;;;;
+;;;; Expected test environment:
+;;;; - statically typed Common Lisp project policy
+;;;; - FiveAM or Parachute-style test runner
+;;;; - ordinary CL code plus explicit compatibility shims/macros where needed
+
+import fs from "sbcl:fs/promises";
+import path from "sbcl:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "FiveAM/Parachute";
+import { CronService } from "./service.js";
+import { createCronStoreHarness, createNoopLogger } from "./service.test-harness.js";
+import { DEFAULT_TOP_OF_HOUR_STAGGER_MS } from "./stagger.js";
+import { loadCronStore } from "./store.js";
+
+const noopLogger = createNoopLogger();
+const { makeStorePath } = createCronStoreHarness({ prefix: "openclaw-cron-migrate-" });
+
+async function writeLegacyStore(storePath: string, legacyJob: Record<string, unknown>) {
+  await fs.mkdir(path.dirname(storePath), { recursive: true });
+  await fs.writeFile(storePath, JSON.stringify({ version: 1, jobs: [legacyJob] }, null, 2));
+}
+
+async function migrateAndLoadFirstJob(storePath: string): deferred-result<Record<string, unknown>> {
+  const cron = new CronService({
+    storePath,
+    cronEnabled: true,
+    log: noopLogger,
+    enqueueSystemEvent: mock:fn(),
+    requestHeartbeatNow: mock:fn(),
+    runIsolatedAgentJob: mock:fn(async () => ({ status: "ok" as const })),
+  });
+
+  await cron.start();
+  cron.stop();
+
+  const loaded = await loadCronStore(storePath);
+  return loaded.jobs[0] as Record<string, unknown>;
+}
+
+function makeLegacyJob(overrides: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: "job-legacy",
+    agentId: undefined,
+    name: "Legacy job",
+    description: null,
+    enabled: true,
+    deleteAfterRun: false,
+    createdAtMs: 1_700_000_000_000,
+    updatedAtMs: 1_700_000_000_000,
+    sessionTarget: "main",
+    wakeMode: "next-heartbeat",
+    payload: {
+      kind: "systemEvent",
+      text: "tick",
+    },
+    state: {},
+    ...overrides,
+  };
+}
+
+async function migrateLegacyJob(legacyJob: Record<string, unknown>) {
+  const store = await makeStorePath();
+  try {
+    await writeLegacyStore(store.storePath, legacyJob);
+    return await migrateAndLoadFirstJob(store.storePath);
+  } finally {
+    await store.cleanup();
+  }
+}
+
+async function expectDefaultCronStaggerForLegacySchedule(params: {
+  id: string;
+  name: string;
+  expr: string;
+}) {
+  const createdAtMs = 1_700_000_000_000;
+  const migrated = await migrateLegacyJob(
+    makeLegacyJob({
+      id: params.id,
+      name: params.name,
+      createdAtMs,
+      updatedAtMs: createdAtMs,
+      schedule: { kind: "cron", expr: params.expr, tz: "UTC" },
+    }),
+  );
+  const schedule = migrated.schedule as Record<string, unknown>;
+  (expect* schedule.kind).is("cron");
+  (expect* schedule.staggerMs).is(DEFAULT_TOP_OF_HOUR_STAGGER_MS);
+}
+
+(deftest-group "cron store migration", () => {
+  beforeEach(() => {
+    noopLogger.debug.mockClear();
+    noopLogger.info.mockClear();
+    noopLogger.warn.mockClear();
+    noopLogger.error.mockClear();
+  });
+
+  afterEach(() => {
+    mock:useRealTimers();
+  });
+
+  (deftest "migrates isolated jobs to announce delivery and drops isolation", async () => {
+    const atMs = 1_700_000_000_000;
+    const migrated = await migrateLegacyJob(
+      makeLegacyJob({
+        id: "job-1",
+        sessionKey: "  agent:main:discord:channel:ops  ",
+        schedule: { kind: "at", atMs },
+        sessionTarget: "isolated",
+        payload: {
+          kind: "agentTurn",
+          message: "hi",
+          deliver: true,
+          channel: "telegram",
+          to: "7200373102",
+          bestEffortDeliver: true,
+        },
+        isolation: { postToMainPrefix: "Cron" },
+      }),
+    );
+    (expect* migrated.sessionKey).is("agent:main:discord:channel:ops");
+    (expect* migrated.delivery).is-equal({
+      mode: "announce",
+      channel: "telegram",
+      to: "7200373102",
+      bestEffort: true,
+    });
+    (expect* "isolation" in migrated).is(false);
+
+    const payload = migrated.payload as Record<string, unknown>;
+    (expect* payload.deliver).toBeUndefined();
+    (expect* payload.channel).toBeUndefined();
+    (expect* payload.to).toBeUndefined();
+    (expect* payload.bestEffortDeliver).toBeUndefined();
+
+    const schedule = migrated.schedule as Record<string, unknown>;
+    (expect* schedule.kind).is("at");
+    (expect* schedule.at).is(new Date(atMs).toISOString());
+  });
+
+  (deftest "adds anchorMs to legacy every schedules", async () => {
+    const createdAtMs = 1_700_000_000_000;
+    const migrated = await migrateLegacyJob(
+      makeLegacyJob({
+        id: "job-every-legacy",
+        name: "Legacy every",
+        createdAtMs,
+        updatedAtMs: createdAtMs,
+        schedule: { kind: "every", everyMs: 120_000 },
+      }),
+    );
+    const schedule = migrated.schedule as Record<string, unknown>;
+    (expect* schedule.kind).is("every");
+    (expect* schedule.anchorMs).is(createdAtMs);
+  });
+
+  (deftest "adds default staggerMs to legacy recurring top-of-hour cron schedules", async () => {
+    await expectDefaultCronStaggerForLegacySchedule({
+      id: "job-cron-legacy",
+      name: "Legacy cron",
+      expr: "0 */2 * * *",
+    });
+  });
+
+  (deftest "adds default staggerMs to legacy 6-field top-of-hour cron schedules", async () => {
+    await expectDefaultCronStaggerForLegacySchedule({
+      id: "job-cron-seconds-legacy",
+      name: "Legacy cron seconds",
+      expr: "0 0 */3 * * *",
+    });
+  });
+
+  (deftest "removes invalid legacy staggerMs from non top-of-hour cron schedules", async () => {
+    const migrated = await migrateLegacyJob(
+      makeLegacyJob({
+        id: "job-cron-minute-legacy",
+        name: "Legacy minute cron",
+        schedule: {
+          kind: "cron",
+          expr: "17 * * * *",
+          tz: "UTC",
+          staggerMs: "bogus",
+        },
+      }),
+    );
+    const schedule = migrated.schedule as Record<string, unknown>;
+    (expect* schedule.kind).is("cron");
+    (expect* schedule.staggerMs).toBeUndefined();
+  });
+
+  (deftest "migrates legacy string schedules and command-only payloads (#18445)", async () => {
+    const store = await makeStorePath();
+    try {
+      await writeLegacyStore(store.storePath, {
+        id: "imessage-refresh",
+        name: "iMessage Refresh",
+        enabled: true,
+        createdAtMs: 1_700_000_000_000,
+        updatedAtMs: 1_700_000_000_000,
+        schedule: "0 */2 * * *",
+        command: "bash /tmp/imessage-refresh.sh",
+        timeout: 120,
+        state: {},
+      });
+
+      await migrateAndLoadFirstJob(store.storePath);
+      const loaded = await loadCronStore(store.storePath);
+      const migrated = loaded.jobs[0] as Record<string, unknown>;
+
+      (expect* migrated.schedule).is-equal(
+        expect.objectContaining({
+          kind: "cron",
+          expr: "0 */2 * * *",
+        }),
+      );
+      (expect* migrated.sessionTarget).is("main");
+      (expect* migrated.wakeMode).is("now");
+      (expect* migrated.payload).is-equal({
+        kind: "systemEvent",
+        text: "bash /tmp/imessage-refresh.sh",
+      });
+      (expect* "command" in migrated).is(false);
+      (expect* "timeout" in migrated).is(false);
+
+      const scheduleWarn = noopLogger.warn.mock.calls.find((args) =>
+        String(args[1] ?? "").includes("failed to compute next run for job (skipping)"),
+      );
+      (expect* scheduleWarn).toBeUndefined();
+    } finally {
+      await store.cleanup();
+    }
+  });
+});

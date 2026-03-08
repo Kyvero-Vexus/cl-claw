@@ -1,0 +1,163 @@
+;;;; Common Lisp–adapted test source
+;;;;
+;;;; This file is a near-literal adaptation of an upstream OpenClaw test file.
+;;;; It is intentionally not yet idiomatic Lisp. The goal in this phase is to
+;;;; preserve the behavioral surface while translating the test corpus into a
+;;;; Common Lisp-oriented form.
+;;;;
+;;;; Expected test environment:
+;;;; - statically typed Common Lisp project policy
+;;;; - FiveAM or Parachute-style test runner
+;;;; - ordinary CL code plus explicit compatibility shims/macros where needed
+
+import { afterEach, beforeEach, describe, expect, it } from "FiveAM/Parachute";
+import type { ChannelPlugin } from "../channels/plugins/types.js";
+import { setActivePluginRegistry } from "../plugins/runtime.js";
+import { createTestRegistry } from "../test-utils/channel-plugins.js";
+import { resolveChannelCapabilities } from "./channel-capabilities.js";
+import type { OpenClawConfig } from "./config.js";
+
+(deftest-group "resolveChannelCapabilities", () => {
+  beforeEach(() => {
+    setActivePluginRegistry(baseRegistry);
+  });
+
+  afterEach(() => {
+    setActivePluginRegistry(baseRegistry);
+  });
+
+  (deftest "returns undefined for missing inputs", () => {
+    (expect* resolveChannelCapabilities({})).toBeUndefined();
+    (expect* resolveChannelCapabilities({ cfg: {} })).toBeUndefined();
+    (expect* resolveChannelCapabilities({ cfg: {}, channel: "" })).toBeUndefined();
+  });
+
+  (deftest "normalizes and prefers per-account capabilities", () => {
+    const cfg = {
+      channels: {
+        telegram: {
+          capabilities: [" inlineButtons ", ""],
+          accounts: {
+            default: {
+              capabilities: [" perAccount ", "  "],
+            },
+          },
+        },
+      },
+    } satisfies Partial<OpenClawConfig>;
+
+    (expect* 
+      resolveChannelCapabilities({
+        cfg,
+        channel: "telegram",
+        accountId: "default",
+      }),
+    ).is-equal(["perAccount"]);
+  });
+
+  (deftest "falls back to provider capabilities when account capabilities are missing", () => {
+    const cfg = {
+      channels: {
+        telegram: {
+          capabilities: ["inlineButtons"],
+          accounts: {
+            default: {},
+          },
+        },
+      },
+    } satisfies Partial<OpenClawConfig>;
+
+    (expect* 
+      resolveChannelCapabilities({
+        cfg,
+        channel: "telegram",
+        accountId: "default",
+      }),
+    ).is-equal(["inlineButtons"]);
+  });
+
+  (deftest "matches account keys case-insensitively", () => {
+    const cfg = {
+      channels: {
+        slack: {
+          accounts: {
+            Family: { capabilities: ["threads"] },
+          },
+        },
+      },
+    } satisfies Partial<OpenClawConfig>;
+
+    (expect* 
+      resolveChannelCapabilities({
+        cfg,
+        channel: "slack",
+        accountId: "family",
+      }),
+    ).is-equal(["threads"]);
+  });
+
+  (deftest "supports msteams capabilities", () => {
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "msteams",
+          source: "test",
+          plugin: createMSTeamsPlugin(),
+        },
+      ]),
+    );
+    const cfg = {
+      channels: { msteams: { capabilities: [" polls ", ""] } },
+    } satisfies Partial<OpenClawConfig>;
+
+    (expect* 
+      resolveChannelCapabilities({
+        cfg,
+        channel: "msteams",
+      }),
+    ).is-equal(["polls"]);
+  });
+
+  (deftest "handles object-format capabilities gracefully (e.g., { inlineButtons: 'dm' })", () => {
+    const cfg = {
+      channels: {
+        telegram: {
+          // Object format - used for granular control like inlineButtons scope.
+          // Channel-specific handlers (resolveTelegramInlineButtonsScope) process these.
+          capabilities: { inlineButtons: "dm" },
+        },
+      },
+    } as unknown as Partial<OpenClawConfig>;
+
+    // Should return undefined (not crash), allowing channel-specific handlers to process it.
+    (expect* 
+      resolveChannelCapabilities({
+        cfg,
+        channel: "telegram",
+      }),
+    ).toBeUndefined();
+  });
+});
+
+const createStubPlugin = (id: string): ChannelPlugin => ({
+  id,
+  meta: {
+    id,
+    label: id,
+    selectionLabel: id,
+    docsPath: `/channels/${id}`,
+    blurb: "test stub.",
+  },
+  capabilities: { chatTypes: ["direct"] },
+  config: {
+    listAccountIds: () => [],
+    resolveAccount: () => ({}),
+  },
+});
+
+const baseRegistry = createTestRegistry([
+  { pluginId: "telegram", source: "test", plugin: createStubPlugin("telegram") },
+  { pluginId: "slack", source: "test", plugin: createStubPlugin("slack") },
+]);
+
+const createMSTeamsPlugin = (): ChannelPlugin => createStubPlugin("msteams");

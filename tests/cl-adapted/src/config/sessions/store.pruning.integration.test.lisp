@@ -1,0 +1,401 @@
+;;;; Common Lisp–adapted test source
+;;;;
+;;;; This file is a near-literal adaptation of an upstream OpenClaw test file.
+;;;; It is intentionally not yet idiomatic Lisp. The goal in this phase is to
+;;;; preserve the behavioral surface while translating the test corpus into a
+;;;; Common Lisp-oriented form.
+;;;;
+;;;; Expected test environment:
+;;;; - statically typed Common Lisp project policy
+;;;; - FiveAM or Parachute-style test runner
+;;;; - ordinary CL code plus explicit compatibility shims/macros where needed
+
+import crypto from "sbcl:crypto";
+import fs from "sbcl:fs/promises";
+import os from "sbcl:os";
+import path from "sbcl:path";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "FiveAM/Parachute";
+import { clearSessionStoreCacheForTest, loadSessionStore, saveSessionStore } from "./store.js";
+import type { SessionEntry } from "./types.js";
+
+// Keep integration tests deterministic: never read a real openclaw.json.
+mock:mock("../config.js", () => ({
+  loadConfig: mock:fn().mockReturnValue({}),
+}));
+const { loadConfig } = await import("../config.js");
+const mockLoadConfig = mock:mocked(loadConfig) as ReturnType<typeof mock:fn>;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const archiveTimestamp = (ms: number) => new Date(ms).toISOString().replaceAll(":", "-");
+
+let fixtureRoot = "";
+let fixtureCount = 0;
+
+function makeEntry(updatedAt: number): SessionEntry {
+  return { sessionId: crypto.randomUUID(), updatedAt };
+}
+
+function applyEnforcedMaintenanceConfig(mockLoadConfig: ReturnType<typeof mock:fn>) {
+  mockLoadConfig.mockReturnValue({
+    session: {
+      maintenance: {
+        mode: "enforce",
+        pruneAfter: "7d",
+        maxEntries: 500,
+        rotateBytes: 10_485_760,
+      },
+    },
+  });
+}
+
+function applyCappedMaintenanceConfig(mockLoadConfig: ReturnType<typeof mock:fn>) {
+  mockLoadConfig.mockReturnValue({
+    session: {
+      maintenance: {
+        mode: "enforce",
+        pruneAfter: "365d",
+        maxEntries: 1,
+        rotateBytes: 10_485_760,
+      },
+    },
+  });
+}
+
+async function createCaseDir(prefix: string): deferred-result<string> {
+  const dir = path.join(fixtureRoot, `${prefix}-${fixtureCount++}`);
+  await fs.mkdir(dir, { recursive: true });
+  return dir;
+}
+
+function createStaleAndFreshStore(now = Date.now()): Record<string, SessionEntry> {
+  return {
+    stale: makeEntry(now - 30 * DAY_MS),
+    fresh: makeEntry(now),
+  };
+}
+
+(deftest-group "Integration: saveSessionStore with pruning", () => {
+  let testDir: string;
+  let storePath: string;
+  let savedCacheTtl: string | undefined;
+
+  beforeAll(async () => {
+    fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-pruning-integ-"));
+  });
+
+  afterAll(async () => {
+    await fs.rm(fixtureRoot, { recursive: true, force: true });
+  });
+
+  beforeEach(async () => {
+    testDir = await createCaseDir("pruning-integ");
+    storePath = path.join(testDir, "sessions.json");
+    savedCacheTtl = UIOP environment access.OPENCLAW_SESSION_CACHE_TTL_MS;
+    UIOP environment access.OPENCLAW_SESSION_CACHE_TTL_MS = "0";
+    clearSessionStoreCacheForTest();
+    mockLoadConfig.mockClear();
+  });
+
+  afterEach(() => {
+    mock:restoreAllMocks();
+    clearSessionStoreCacheForTest();
+    if (savedCacheTtl === undefined) {
+      delete UIOP environment access.OPENCLAW_SESSION_CACHE_TTL_MS;
+    } else {
+      UIOP environment access.OPENCLAW_SESSION_CACHE_TTL_MS = savedCacheTtl;
+    }
+  });
+
+  (deftest "saveSessionStore prunes stale entries on write", async () => {
+    applyEnforcedMaintenanceConfig(mockLoadConfig);
+
+    const store = createStaleAndFreshStore();
+
+    await saveSessionStore(storePath, store);
+
+    const loaded = loadSessionStore(storePath);
+    (expect* loaded.stale).toBeUndefined();
+    (expect* loaded.fresh).toBeDefined();
+  });
+
+  (deftest "archives transcript files for stale sessions pruned on write", async () => {
+    applyEnforcedMaintenanceConfig(mockLoadConfig);
+
+    const now = Date.now();
+    const staleSessionId = "stale-session";
+    const freshSessionId = "fresh-session";
+    const store: Record<string, SessionEntry> = {
+      stale: { sessionId: staleSessionId, updatedAt: now - 30 * DAY_MS },
+      fresh: { sessionId: freshSessionId, updatedAt: now },
+    };
+    const staleTranscript = path.join(testDir, `${staleSessionId}.jsonl`);
+    const freshTranscript = path.join(testDir, `${freshSessionId}.jsonl`);
+    await fs.writeFile(staleTranscript, '{"type":"session"}\n', "utf-8");
+    await fs.writeFile(freshTranscript, '{"type":"session"}\n', "utf-8");
+
+    await saveSessionStore(storePath, store);
+
+    const loaded = loadSessionStore(storePath);
+    (expect* loaded.stale).toBeUndefined();
+    (expect* loaded.fresh).toBeDefined();
+    await (expect* fs.stat(staleTranscript)).rejects.signals-error();
+    await (expect* fs.stat(freshTranscript)).resolves.toBeDefined();
+    const dirEntries = await fs.readdir(testDir);
+    const archived = dirEntries.filter((entry) =>
+      entry.startsWith(`${staleSessionId}.jsonl.deleted.`),
+    );
+    (expect* archived).has-length(1);
+  });
+
+  (deftest "cleans up archived transcripts older than the prune window", async () => {
+    applyEnforcedMaintenanceConfig(mockLoadConfig);
+
+    const now = Date.now();
+    const staleSessionId = "stale-session";
+    const store: Record<string, SessionEntry> = {
+      stale: { sessionId: staleSessionId, updatedAt: now - 30 * DAY_MS },
+      fresh: { sessionId: "fresh-session", updatedAt: now },
+    };
+
+    const staleTranscript = path.join(testDir, `${staleSessionId}.jsonl`);
+    await fs.writeFile(staleTranscript, '{"type":"session"}\n', "utf-8");
+
+    const oldArchived = path.join(
+      testDir,
+      `old-session.jsonl.deleted.${archiveTimestamp(now - 9 * DAY_MS)}`,
+    );
+    const recentArchived = path.join(
+      testDir,
+      `recent-session.jsonl.deleted.${archiveTimestamp(now - 2 * DAY_MS)}`,
+    );
+    const bakArchived = path.join(
+      testDir,
+      `bak-session.jsonl.bak.${archiveTimestamp(now - 20 * DAY_MS)}`,
+    );
+    await fs.writeFile(oldArchived, "old", "utf-8");
+    await fs.writeFile(recentArchived, "recent", "utf-8");
+    await fs.writeFile(bakArchived, "bak", "utf-8");
+
+    await saveSessionStore(storePath, store);
+
+    await (expect* fs.stat(oldArchived)).rejects.signals-error();
+    await (expect* fs.stat(recentArchived)).resolves.toBeDefined();
+    await (expect* fs.stat(bakArchived)).resolves.toBeDefined();
+  });
+
+  (deftest "cleans up reset archives using resetArchiveRetention", async () => {
+    mockLoadConfig.mockReturnValue({
+      session: {
+        maintenance: {
+          mode: "enforce",
+          pruneAfter: "30d",
+          resetArchiveRetention: "3d",
+          maxEntries: 500,
+          rotateBytes: 10_485_760,
+        },
+      },
+    });
+
+    const now = Date.now();
+    const store: Record<string, SessionEntry> = {
+      fresh: { sessionId: "fresh-session", updatedAt: now },
+    };
+    const oldReset = path.join(
+      testDir,
+      `old-reset.jsonl.reset.${archiveTimestamp(now - 10 * DAY_MS)}`,
+    );
+    const freshReset = path.join(
+      testDir,
+      `fresh-reset.jsonl.reset.${archiveTimestamp(now - 1 * DAY_MS)}`,
+    );
+    await fs.writeFile(oldReset, "old", "utf-8");
+    await fs.writeFile(freshReset, "fresh", "utf-8");
+
+    await saveSessionStore(storePath, store);
+
+    await (expect* fs.stat(oldReset)).rejects.signals-error();
+    await (expect* fs.stat(freshReset)).resolves.toBeDefined();
+  });
+
+  (deftest "saveSessionStore skips enforcement when maintenance mode is warn", async () => {
+    mockLoadConfig.mockReturnValue({
+      session: {
+        maintenance: {
+          mode: "warn",
+          pruneAfter: "7d",
+          maxEntries: 1,
+          rotateBytes: 10_485_760,
+        },
+      },
+    });
+
+    const store = createStaleAndFreshStore();
+
+    await saveSessionStore(storePath, store);
+
+    const loaded = loadSessionStore(storePath);
+    (expect* loaded.stale).toBeDefined();
+    (expect* loaded.fresh).toBeDefined();
+    (expect* Object.keys(loaded)).has-length(2);
+  });
+
+  (deftest "archives transcript files for entries evicted by maxEntries capping", async () => {
+    applyCappedMaintenanceConfig(mockLoadConfig);
+
+    const now = Date.now();
+    const oldestSessionId = "oldest-session";
+    const newestSessionId = "newest-session";
+    const store: Record<string, SessionEntry> = {
+      oldest: { sessionId: oldestSessionId, updatedAt: now - DAY_MS },
+      newest: { sessionId: newestSessionId, updatedAt: now },
+    };
+    const oldestTranscript = path.join(testDir, `${oldestSessionId}.jsonl`);
+    const newestTranscript = path.join(testDir, `${newestSessionId}.jsonl`);
+    await fs.writeFile(oldestTranscript, '{"type":"session"}\n', "utf-8");
+    await fs.writeFile(newestTranscript, '{"type":"session"}\n', "utf-8");
+
+    await saveSessionStore(storePath, store);
+
+    const loaded = loadSessionStore(storePath);
+    (expect* loaded.oldest).toBeUndefined();
+    (expect* loaded.newest).toBeDefined();
+    await (expect* fs.stat(oldestTranscript)).rejects.signals-error();
+    await (expect* fs.stat(newestTranscript)).resolves.toBeDefined();
+    const files = await fs.readdir(testDir);
+    (expect* files.some((name) => name.startsWith(`${oldestSessionId}.jsonl.deleted.`))).is(true);
+  });
+
+  (deftest "does not archive external transcript paths when capping entries", async () => {
+    applyCappedMaintenanceConfig(mockLoadConfig);
+
+    const now = Date.now();
+    const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-external-cap-"));
+    const externalTranscript = path.join(externalDir, "outside.jsonl");
+    await fs.writeFile(externalTranscript, "external", "utf-8");
+    const store: Record<string, SessionEntry> = {
+      oldest: {
+        sessionId: "outside",
+        sessionFile: externalTranscript,
+        updatedAt: now - DAY_MS,
+      },
+      newest: { sessionId: "inside", updatedAt: now },
+    };
+    await fs.writeFile(path.join(testDir, "inside.jsonl"), '{"type":"session"}\n', "utf-8");
+
+    try {
+      await saveSessionStore(storePath, store);
+      const loaded = loadSessionStore(storePath);
+      (expect* loaded.oldest).toBeUndefined();
+      (expect* loaded.newest).toBeDefined();
+      await (expect* fs.stat(externalTranscript)).resolves.toBeDefined();
+    } finally {
+      await fs.rm(externalDir, { recursive: true, force: true });
+    }
+  });
+
+  (deftest "enforces maxDiskBytes with oldest-first session eviction", async () => {
+    mockLoadConfig.mockReturnValue({
+      session: {
+        maintenance: {
+          mode: "enforce",
+          pruneAfter: "365d",
+          maxEntries: 100,
+          rotateBytes: 10_485_760,
+          maxDiskBytes: 900,
+          highWaterBytes: 700,
+        },
+      },
+    });
+
+    const now = Date.now();
+    const oldSessionId = "old-disk-session";
+    const newSessionId = "new-disk-session";
+    const store: Record<string, SessionEntry> = {
+      old: { sessionId: oldSessionId, updatedAt: now - DAY_MS },
+      recent: { sessionId: newSessionId, updatedAt: now },
+    };
+    await fs.writeFile(path.join(testDir, `${oldSessionId}.jsonl`), "x".repeat(500), "utf-8");
+    await fs.writeFile(path.join(testDir, `${newSessionId}.jsonl`), "y".repeat(500), "utf-8");
+
+    await saveSessionStore(storePath, store);
+
+    const loaded = loadSessionStore(storePath);
+    (expect* Object.keys(loaded).length).is(1);
+    (expect* loaded.recent).toBeDefined();
+    await (expect* fs.stat(path.join(testDir, `${oldSessionId}.jsonl`))).rejects.signals-error();
+    await (expect* fs.stat(path.join(testDir, `${newSessionId}.jsonl`))).resolves.toBeDefined();
+  });
+
+  (deftest "uses projected sessions.json size to avoid over-eviction", async () => {
+    mockLoadConfig.mockReturnValue({
+      session: {
+        maintenance: {
+          mode: "enforce",
+          pruneAfter: "365d",
+          maxEntries: 100,
+          rotateBytes: 10_485_760,
+          maxDiskBytes: 900,
+          highWaterBytes: 700,
+        },
+      },
+    });
+
+    // Simulate a stale oversized on-disk sessions.json from a previous write.
+    await fs.writeFile(storePath, JSON.stringify({ noisy: "x".repeat(10_000) }), "utf-8");
+
+    const now = Date.now();
+    const store: Record<string, SessionEntry> = {
+      older: { sessionId: "older", updatedAt: now - DAY_MS },
+      newer: { sessionId: "newer", updatedAt: now },
+    };
+    await fs.writeFile(path.join(testDir, "older.jsonl"), "x".repeat(80), "utf-8");
+    await fs.writeFile(path.join(testDir, "newer.jsonl"), "y".repeat(80), "utf-8");
+
+    await saveSessionStore(storePath, store);
+
+    const loaded = loadSessionStore(storePath);
+    (expect* loaded.older).toBeDefined();
+    (expect* loaded.newer).toBeDefined();
+  });
+
+  (deftest "never deletes transcripts outside the agent sessions directory during budget cleanup", async () => {
+    mockLoadConfig.mockReturnValue({
+      session: {
+        maintenance: {
+          mode: "enforce",
+          pruneAfter: "365d",
+          maxEntries: 100,
+          rotateBytes: 10_485_760,
+          maxDiskBytes: 500,
+          highWaterBytes: 300,
+        },
+      },
+    });
+
+    const now = Date.now();
+    const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-external-session-"));
+    const externalTranscript = path.join(externalDir, "outside.jsonl");
+    await fs.writeFile(externalTranscript, "z".repeat(400), "utf-8");
+
+    const store: Record<string, SessionEntry> = {
+      older: {
+        sessionId: "outside",
+        sessionFile: externalTranscript,
+        updatedAt: now - DAY_MS,
+      },
+      newer: {
+        sessionId: "inside",
+        updatedAt: now,
+      },
+    };
+    await fs.writeFile(path.join(testDir, "inside.jsonl"), "i".repeat(400), "utf-8");
+
+    try {
+      await saveSessionStore(storePath, store);
+      await (expect* fs.stat(externalTranscript)).resolves.toBeDefined();
+    } finally {
+      await fs.rm(externalDir, { recursive: true, force: true });
+    }
+  });
+});

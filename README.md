@@ -32,6 +32,7 @@ without simplifying the underlying behavior.
 - Where no strong pure-CL equivalent exists, permit a narrow external helper
   while keeping control and semantics in Common Lisp.
 - Do not simplify in this phase.
+- Require statically typed Common Lisp discipline: SBCL type declarations as baseline, with Coalton for suitable core modules.
 
 ## Source provenance
 

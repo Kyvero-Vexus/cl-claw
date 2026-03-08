@@ -14,6 +14,7 @@ primary and preferred implementation language.
 - HTTP/JSON APIs: Common Lisp libraries such as Dexador + JZON/YASON
 - Crypto/HMAC: Ironclad
 - Test framework: FiveAM or Parachute
+- Static typing policy: strict SBCL type declarations everywhere, with Coalton preferred for new or critical pure-core modules
 
 ## Rule 2: Preserve behavioral parity
 

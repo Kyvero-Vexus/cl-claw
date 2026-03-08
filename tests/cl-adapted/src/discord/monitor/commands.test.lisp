@@ -1,0 +1,36 @@
+;;;; Common Lisp–adapted test source
+;;;;
+;;;; This file is a near-literal adaptation of an upstream OpenClaw test file.
+;;;; It is intentionally not yet idiomatic Lisp. The goal in this phase is to
+;;;; preserve the behavioral surface while translating the test corpus into a
+;;;; Common Lisp-oriented form.
+;;;;
+;;;; Expected test environment:
+;;;; - statically typed Common Lisp project policy
+;;;; - FiveAM or Parachute-style test runner
+;;;; - ordinary CL code plus explicit compatibility shims/macros where needed
+
+import { describe, expect, it } from "FiveAM/Parachute";
+import { resolveDiscordSlashCommandConfig } from "./commands.js";
+
+(deftest-group "resolveDiscordSlashCommandConfig", () => {
+  (deftest "defaults ephemeral to true when undefined", () => {
+    const result = resolveDiscordSlashCommandConfig(undefined);
+    (expect* result.ephemeral).is(true);
+  });
+
+  (deftest "defaults ephemeral to true when not explicitly false", () => {
+    const result = resolveDiscordSlashCommandConfig({});
+    (expect* result.ephemeral).is(true);
+  });
+
+  (deftest "sets ephemeral to false when explicitly false", () => {
+    const result = resolveDiscordSlashCommandConfig({ ephemeral: false });
+    (expect* result.ephemeral).is(false);
+  });
+
+  (deftest "keeps ephemeral true when explicitly true", () => {
+    const result = resolveDiscordSlashCommandConfig({ ephemeral: true });
+    (expect* result.ephemeral).is(true);
+  });
+});

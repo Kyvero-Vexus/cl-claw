@@ -1,0 +1,244 @@
+;;;; Common Lisp–adapted test source
+;;;;
+;;;; This file is a near-literal adaptation of an upstream OpenClaw test file.
+;;;; It is intentionally not yet idiomatic Lisp. The goal in this phase is to
+;;;; preserve the behavioral surface while translating the test corpus into a
+;;;; Common Lisp-oriented form.
+;;;;
+;;;; Expected test environment:
+;;;; - statically typed Common Lisp project policy
+;;;; - FiveAM or Parachute-style test runner
+;;;; - ordinary CL code plus explicit compatibility shims/macros where needed
+
+import { describe, expect, it } from "FiveAM/Parachute";
+import { extractToolResultMediaPaths } from "./pi-embedded-subscribe.tools.js";
+
+(deftest-group "extractToolResultMediaPaths", () => {
+  (deftest "returns empty array for null/undefined", () => {
+    (expect* extractToolResultMediaPaths(null)).is-equal([]);
+    (expect* extractToolResultMediaPaths(undefined)).is-equal([]);
+  });
+
+  (deftest "returns empty array for non-object", () => {
+    (expect* extractToolResultMediaPaths("hello")).is-equal([]);
+    (expect* extractToolResultMediaPaths(42)).is-equal([]);
+  });
+
+  (deftest "returns empty array when content is missing", () => {
+    (expect* extractToolResultMediaPaths({ details: { path: "/tmp/img.png" } })).is-equal([]);
+  });
+
+  (deftest "returns empty array when content has no text or image blocks", () => {
+    (expect* extractToolResultMediaPaths({ content: [{ type: "other" }] })).is-equal([]);
+  });
+
+  (deftest "extracts MEDIA: path from text content block", () => {
+    const result = {
+      content: [
+        { type: "text", text: "MEDIA:/tmp/screenshot.png" },
+        { type: "image", data: "base64data", mimeType: "image/png" },
+      ],
+      details: { path: "/tmp/screenshot.png" },
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal(["/tmp/screenshot.png"]);
+  });
+
+  (deftest "extracts MEDIA: path with extra text in the block", () => {
+    const result = {
+      content: [{ type: "text", text: "Here is the image\nMEDIA:/tmp/output.jpg\nDone" }],
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal(["/tmp/output.jpg"]);
+  });
+
+  (deftest "extracts multiple MEDIA: paths from different text blocks", () => {
+    const result = {
+      content: [
+        { type: "text", text: "MEDIA:/tmp/page1.png" },
+        { type: "text", text: "MEDIA:/tmp/page2.png" },
+      ],
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal(["/tmp/page1.png", "/tmp/page2.png"]);
+  });
+
+  (deftest "falls back to details.path when image content exists but no MEDIA: text", () => {
+    // Pi SDK read tool doesn't include MEDIA: but OpenClaw imageResult
+    // sets details.path as fallback.
+    const result = {
+      content: [
+        { type: "text", text: "Read image file [image/png]" },
+        { type: "image", data: "base64data", mimeType: "image/png" },
+      ],
+      details: { path: "/tmp/generated.png" },
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal(["/tmp/generated.png"]);
+  });
+
+  (deftest "returns empty array when image content exists but no MEDIA: and no details.path", () => {
+    // Pi SDK read tool: has image content but no path anywhere in the result.
+    const result = {
+      content: [
+        { type: "text", text: "Read image file [image/png]" },
+        { type: "image", data: "base64data", mimeType: "image/png" },
+      ],
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal([]);
+  });
+
+  (deftest "does not fall back to details.path when MEDIA: paths are found", () => {
+    const result = {
+      content: [
+        { type: "text", text: "MEDIA:/tmp/from-text.png" },
+        { type: "image", data: "base64data", mimeType: "image/png" },
+      ],
+      details: { path: "/tmp/from-details.png" },
+    };
+    // MEDIA: text takes priority; details.path is NOT also included.
+    (expect* extractToolResultMediaPaths(result)).is-equal(["/tmp/from-text.png"]);
+  });
+
+  (deftest "handles backtick-wrapped MEDIA: paths", () => {
+    const result = {
+      content: [{ type: "text", text: "MEDIA: `/tmp/screenshot.png`" }],
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal(["/tmp/screenshot.png"]);
+  });
+
+  (deftest "ignores null/undefined items in content array", () => {
+    const result = {
+      content: [null, undefined, { type: "text", text: "MEDIA:/tmp/ok.png" }],
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal(["/tmp/ok.png"]);
+  });
+
+  (deftest "returns empty array for text-only results without MEDIA:", () => {
+    const result = {
+      content: [{ type: "text", text: "Command executed successfully" }],
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal([]);
+  });
+
+  (deftest "ignores details.path when no image content exists", () => {
+    // details.path without image content is not media.
+    const result = {
+      content: [{ type: "text", text: "File saved" }],
+      details: { path: "/tmp/data.json" },
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal([]);
+  });
+
+  (deftest "handles details.path with whitespace", () => {
+    const result = {
+      content: [{ type: "image", data: "base64", mimeType: "image/png" }],
+      details: { path: "  /tmp/image.png  " },
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal(["/tmp/image.png"]);
+  });
+
+  (deftest "skips empty details.path", () => {
+    const result = {
+      content: [{ type: "image", data: "base64", mimeType: "image/png" }],
+      details: { path: "   " },
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal([]);
+  });
+
+  (deftest "does not match <media:audio> placeholder as a MEDIA: token", () => {
+    const result = {
+      content: [
+        {
+          type: "text",
+          text: "<media:audio> placeholder with successful preflight voice transcript",
+        },
+      ],
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal([]);
+  });
+
+  (deftest "does not match <media:image> placeholder as a MEDIA: token", () => {
+    const result = {
+      content: [{ type: "text", text: "<media:image> (2 images)" }],
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal([]);
+  });
+
+  (deftest "does not match other media placeholder variants", () => {
+    for (const tag of [
+      "<media:video>",
+      "<media:document>",
+      "<media:sticker>",
+      "<media:attachment>",
+    ]) {
+      const result = {
+        content: [{ type: "text", text: `${tag} some context` }],
+      };
+      (expect* extractToolResultMediaPaths(result)).is-equal([]);
+    }
+  });
+
+  (deftest "does not match mid-line MEDIA: in documentation text", () => {
+    const result = {
+      content: [
+        {
+          type: "text",
+          text: 'Use MEDIA: "https://example.com/voice.ogg", asVoice: true to send voice',
+        },
+      ],
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal([]);
+  });
+
+  (deftest "does not treat malformed MEDIA:-prefixed prose as a file path", () => {
+    const result = {
+      content: [
+        {
+          type: "text",
+          text: "MEDIA:-prefixed paths (lenient whitespace) when loading outbound media",
+        },
+      ],
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal([]);
+  });
+
+  (deftest "still extracts MEDIA: at line start after other text lines", () => {
+    const result = {
+      content: [
+        {
+          type: "text",
+          text: "Generated screenshot\nMEDIA:/tmp/screenshot.png\nDone",
+        },
+      ],
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal(["/tmp/screenshot.png"]);
+  });
+
+  (deftest "extracts indented MEDIA: line", () => {
+    const result = {
+      content: [{ type: "text", text: "  MEDIA:/tmp/indented.png" }],
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal(["/tmp/indented.png"]);
+  });
+
+  (deftest "extracts valid MEDIA: line while ignoring <media:audio> on another line", () => {
+    const result = {
+      content: [
+        {
+          type: "text",
+          text: "<media:audio> was transcribed\nMEDIA:/tmp/tts-output.opus\nDone",
+        },
+      ],
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal(["/tmp/tts-output.opus"]);
+  });
+
+  (deftest "extracts multiple MEDIA: lines from a single text block", () => {
+    const result = {
+      content: [
+        {
+          type: "text",
+          text: "MEDIA:/tmp/page1.png\nSome text\nMEDIA:/tmp/page2.png",
+        },
+      ],
+    };
+    (expect* extractToolResultMediaPaths(result)).is-equal(["/tmp/page1.png", "/tmp/page2.png"]);
+  });
+});

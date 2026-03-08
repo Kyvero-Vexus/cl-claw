@@ -1,0 +1,194 @@
+;;;; Common Lisp–adapted test source
+;;;;
+;;;; This file is a near-literal adaptation of an upstream OpenClaw test file.
+;;;; It is intentionally not yet idiomatic Lisp. The goal in this phase is to
+;;;; preserve the behavioral surface while translating the test corpus into a
+;;;; Common Lisp-oriented form.
+;;;;
+;;;; Expected test environment:
+;;;; - statically typed Common Lisp project policy
+;;;; - FiveAM or Parachute-style test runner
+;;;; - ordinary CL code plus explicit compatibility shims/macros where needed
+
+import type { StreamFn } from "@mariozechner/pi-agent-core";
+import type { Context, Model } from "@mariozechner/pi-ai";
+import { createAssistantMessageEventStream } from "@mariozechner/pi-ai";
+import { afterEach, describe, expect, it } from "FiveAM/Parachute";
+import { captureEnv } from "../../test-utils/env.js";
+import { applyExtraParamsToAgent } from "./extra-params.js";
+
+type CapturedCall = {
+  headers?: Record<string, string>;
+  payload?: Record<string, unknown>;
+};
+
+function applyAndCapture(params: {
+  provider: string;
+  modelId: string;
+  callerHeaders?: Record<string, string>;
+}): CapturedCall {
+  const captured: CapturedCall = {};
+
+  const baseStreamFn: StreamFn = (_model, _context, options) => {
+    captured.headers = options?.headers;
+    options?.onPayload?.({});
+    return createAssistantMessageEventStream();
+  };
+  const agent = { streamFn: baseStreamFn };
+
+  applyExtraParamsToAgent(agent, undefined, params.provider, params.modelId);
+
+  const model = {
+    api: "openai-completions",
+    provider: params.provider,
+    id: params.modelId,
+  } as Model<"openai-completions">;
+  const context: Context = { messages: [] };
+
+  void agent.streamFn?.(model, context, {
+    headers: params.callerHeaders,
+  });
+
+  return captured;
+}
+
+(deftest-group "extra-params: Kilocode wrapper", () => {
+  const envSnapshot = captureEnv(["KILOCODE_FEATURE"]);
+
+  afterEach(() => {
+    envSnapshot.restore();
+  });
+
+  (deftest "injects X-KILOCODE-FEATURE header with default value", () => {
+    delete UIOP environment access.KILOCODE_FEATURE;
+
+    const { headers } = applyAndCapture({
+      provider: "kilocode",
+      modelId: "anthropic/claude-sonnet-4",
+    });
+
+    (expect* headers?.["X-KILOCODE-FEATURE"]).is("openclaw");
+  });
+
+  (deftest "reads X-KILOCODE-FEATURE from KILOCODE_FEATURE env var", () => {
+    UIOP environment access.KILOCODE_FEATURE = "custom-feature";
+
+    const { headers } = applyAndCapture({
+      provider: "kilocode",
+      modelId: "anthropic/claude-sonnet-4",
+    });
+
+    (expect* headers?.["X-KILOCODE-FEATURE"]).is("custom-feature");
+  });
+
+  (deftest "cannot be overridden by caller headers", () => {
+    delete UIOP environment access.KILOCODE_FEATURE;
+
+    const { headers } = applyAndCapture({
+      provider: "kilocode",
+      modelId: "anthropic/claude-sonnet-4",
+      callerHeaders: { "X-KILOCODE-FEATURE": "should-be-overwritten" },
+    });
+
+    (expect* headers?.["X-KILOCODE-FEATURE"]).is("openclaw");
+  });
+
+  (deftest "does not inject header for non-kilocode providers", () => {
+    const { headers } = applyAndCapture({
+      provider: "openrouter",
+      modelId: "anthropic/claude-sonnet-4",
+    });
+
+    (expect* headers?.["X-KILOCODE-FEATURE"]).toBeUndefined();
+  });
+});
+
+(deftest-group "extra-params: Kilocode kilo/auto reasoning", () => {
+  (deftest "does not inject reasoning.effort for kilo/auto", () => {
+    let capturedPayload: Record<string, unknown> | undefined;
+
+    const baseStreamFn: StreamFn = (_model, _context, options) => {
+      const payload: Record<string, unknown> = { reasoning_effort: "high" };
+      options?.onPayload?.(payload);
+      capturedPayload = payload;
+      return createAssistantMessageEventStream();
+    };
+    const agent = { streamFn: baseStreamFn };
+
+    // Pass thinking level explicitly (6th parameter) to trigger reasoning injection
+    applyExtraParamsToAgent(agent, undefined, "kilocode", "kilo/auto", undefined, "high");
+
+    const model = {
+      api: "openai-completions",
+      provider: "kilocode",
+      id: "kilo/auto",
+    } as Model<"openai-completions">;
+    const context: Context = { messages: [] };
+
+    void agent.streamFn?.(model, context, {});
+
+    // kilo/auto should not have reasoning injected
+    (expect* capturedPayload?.reasoning).toBeUndefined();
+    (expect* capturedPayload).not.toHaveProperty("reasoning_effort");
+  });
+
+  (deftest "injects reasoning.effort for non-auto kilocode models", () => {
+    let capturedPayload: Record<string, unknown> | undefined;
+
+    const baseStreamFn: StreamFn = (_model, _context, options) => {
+      const payload: Record<string, unknown> = {};
+      options?.onPayload?.(payload);
+      capturedPayload = payload;
+      return createAssistantMessageEventStream();
+    };
+    const agent = { streamFn: baseStreamFn };
+
+    applyExtraParamsToAgent(
+      agent,
+      undefined,
+      "kilocode",
+      "anthropic/claude-sonnet-4",
+      undefined,
+      "high",
+    );
+
+    const model = {
+      api: "openai-completions",
+      provider: "kilocode",
+      id: "anthropic/claude-sonnet-4",
+    } as Model<"openai-completions">;
+    const context: Context = { messages: [] };
+
+    void agent.streamFn?.(model, context, {});
+
+    // Non-auto models should have reasoning injected
+    (expect* capturedPayload?.reasoning).is-equal({ effort: "high" });
+  });
+
+  (deftest "does not inject reasoning.effort for x-ai models", () => {
+    let capturedPayload: Record<string, unknown> | undefined;
+
+    const baseStreamFn: StreamFn = (_model, _context, options) => {
+      const payload: Record<string, unknown> = { reasoning_effort: "high" };
+      options?.onPayload?.(payload);
+      capturedPayload = payload;
+      return createAssistantMessageEventStream();
+    };
+    const agent = { streamFn: baseStreamFn };
+
+    applyExtraParamsToAgent(agent, undefined, "kilocode", "x-ai/grok-3", undefined, "high");
+
+    const model = {
+      api: "openai-completions",
+      provider: "kilocode",
+      id: "x-ai/grok-3",
+    } as Model<"openai-completions">;
+    const context: Context = { messages: [] };
+
+    void agent.streamFn?.(model, context, {});
+
+    // x-ai models reject reasoning.effort — should be skipped
+    (expect* capturedPayload?.reasoning).toBeUndefined();
+    (expect* capturedPayload).not.toHaveProperty("reasoning_effort");
+  });
+});

@@ -1,0 +1,311 @@
+;;;; Common Lisp–adapted test source
+;;;;
+;;;; This file is a near-literal adaptation of an upstream OpenClaw test file.
+;;;; It is intentionally not yet idiomatic Lisp. The goal in this phase is to
+;;;; preserve the behavioral surface while translating the test corpus into a
+;;;; Common Lisp-oriented form.
+;;;;
+;;;; Expected test environment:
+;;;; - statically typed Common Lisp project policy
+;;;; - FiveAM or Parachute-style test runner
+;;;; - ordinary CL code plus explicit compatibility shims/macros where needed
+
+import { describe, expect, it, vi } from "FiveAM/Parachute";
+import { buildDispatchInboundCaptureMock } from "../../../test/helpers/dispatch-inbound-capture.js";
+import type { MsgContext } from "../../auto-reply/templating.js";
+import type { OpenClawConfig } from "../../config/types.js";
+import {
+  createBaseSignalEventHandlerDeps,
+  createSignalReceiveEvent,
+} from "./event-handler.test-harness.js";
+
+type SignalMsgContext = Pick<MsgContext, "Body" | "WasMentioned"> & {
+  Body?: string;
+  WasMentioned?: boolean;
+};
+
+let capturedCtx: SignalMsgContext | undefined;
+
+function getCapturedCtx() {
+  return capturedCtx as SignalMsgContext;
+}
+
+mock:mock("../../auto-reply/dispatch.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../auto-reply/dispatch.js")>();
+  return buildDispatchInboundCaptureMock(actual, (ctx) => {
+    capturedCtx = ctx as SignalMsgContext;
+  });
+});
+
+import { createSignalEventHandler } from "./event-handler.js";
+import { renderSignalMentions } from "./mentions.js";
+
+type GroupEventOpts = {
+  message?: string;
+  attachments?: unknown[];
+  quoteText?: string;
+  mentions?: Array<{
+    uuid?: string;
+    number?: string;
+    start?: number;
+    length?: number;
+  }> | null;
+};
+
+function makeGroupEvent(opts: GroupEventOpts) {
+  return createSignalReceiveEvent({
+    dataMessage: {
+      message: opts.message ?? "",
+      attachments: opts.attachments ?? [],
+      quote: opts.quoteText ? { text: opts.quoteText } : undefined,
+      mentions: opts.mentions ?? undefined,
+      groupInfo: { groupId: "g1", groupName: "Test Group" },
+    },
+  });
+}
+
+function createMentionHandler(params: {
+  requireMention: boolean;
+  mentionPattern?: string;
+  historyLimit?: number;
+  groupHistories?: ReturnType<typeof createBaseSignalEventHandlerDeps>["groupHistories"];
+}) {
+  return createSignalEventHandler(
+    createBaseSignalEventHandlerDeps({
+      cfg: createSignalConfig({
+        requireMention: params.requireMention,
+        mentionPattern: params.mentionPattern,
+      }),
+      ...(typeof params.historyLimit === "number" ? { historyLimit: params.historyLimit } : {}),
+      ...(params.groupHistories ? { groupHistories: params.groupHistories } : {}),
+    }),
+  );
+}
+
+function createMentionGatedHistoryHandler() {
+  const groupHistories = new Map();
+  const handler = createMentionHandler({ requireMention: true, historyLimit: 5, groupHistories });
+  return { handler, groupHistories };
+}
+
+function createSignalConfig(params: { requireMention: boolean; mentionPattern?: string }) {
+  return {
+    messages: {
+      inbound: { debounceMs: 0 },
+      groupChat: { mentionPatterns: [params.mentionPattern ?? "@bot"] },
+    },
+    channels: {
+      signal: {
+        groups: { "*": { requireMention: params.requireMention } },
+      },
+    },
+  } as unknown as OpenClawConfig;
+}
+
+async function expectSkippedGroupHistory(opts: GroupEventOpts, expectedBody: string) {
+  capturedCtx = undefined;
+  const { handler, groupHistories } = createMentionGatedHistoryHandler();
+  await handler(makeGroupEvent(opts));
+  (expect* capturedCtx).toBeUndefined();
+  const entries = groupHistories.get("g1");
+  (expect* entries).is-truthy();
+  (expect* entries).has-length(1);
+  (expect* entries[0].body).is(expectedBody);
+}
+
+(deftest-group "signal mention gating", () => {
+  (deftest "drops group messages without mention when requireMention is configured", async () => {
+    capturedCtx = undefined;
+    const handler = createMentionHandler({ requireMention: true });
+
+    await handler(makeGroupEvent({ message: "hello everyone" }));
+    (expect* capturedCtx).toBeUndefined();
+  });
+
+  (deftest "allows group messages with mention when requireMention is configured", async () => {
+    capturedCtx = undefined;
+    const handler = createMentionHandler({ requireMention: true });
+
+    await handler(makeGroupEvent({ message: "hey @bot what's up" }));
+    (expect* capturedCtx).is-truthy();
+    (expect* getCapturedCtx()?.WasMentioned).is(true);
+  });
+
+  (deftest "sets WasMentioned=false for group messages without mention when requireMention is off", async () => {
+    capturedCtx = undefined;
+    const handler = createMentionHandler({ requireMention: false });
+
+    await handler(makeGroupEvent({ message: "hello everyone" }));
+    (expect* capturedCtx).is-truthy();
+    (expect* getCapturedCtx()?.WasMentioned).is(false);
+  });
+
+  (deftest "records pending history for skipped group messages", async () => {
+    capturedCtx = undefined;
+    const { handler, groupHistories } = createMentionGatedHistoryHandler();
+    await handler(makeGroupEvent({ message: "hello from alice" }));
+    (expect* capturedCtx).toBeUndefined();
+    const entries = groupHistories.get("g1");
+    (expect* entries).has-length(1);
+    (expect* entries[0].sender).is("Alice");
+    (expect* entries[0].body).is("hello from alice");
+  });
+
+  (deftest "records attachment placeholder in pending history for skipped attachment-only group messages", async () => {
+    await expectSkippedGroupHistory(
+      { message: "", attachments: [{ id: "a1" }] },
+      "<media:attachment>",
+    );
+  });
+
+  (deftest "normalizes mixed-case parameterized attachment MIME in skipped pending history", async () => {
+    capturedCtx = undefined;
+    const groupHistories = new Map();
+    const handler = createSignalEventHandler(
+      createBaseSignalEventHandlerDeps({
+        cfg: createSignalConfig({ requireMention: true }),
+        historyLimit: 5,
+        groupHistories,
+        ignoreAttachments: false,
+      }),
+    );
+
+    await handler(
+      makeGroupEvent({
+        message: "",
+        attachments: [{ contentType: " Audio/Ogg; codecs=opus " }],
+      }),
+    );
+
+    (expect* capturedCtx).toBeUndefined();
+    const entries = groupHistories.get("g1");
+    (expect* entries).has-length(1);
+    (expect* entries[0].body).is("<media:audio>");
+  });
+
+  (deftest "summarizes multiple skipped attachments with stable file count wording", async () => {
+    capturedCtx = undefined;
+    const groupHistories = new Map();
+    const handler = createSignalEventHandler(
+      createBaseSignalEventHandlerDeps({
+        cfg: createSignalConfig({ requireMention: true }),
+        historyLimit: 5,
+        groupHistories,
+        ignoreAttachments: false,
+        fetchAttachment: async ({ attachment }) => ({
+          path: `/tmp/${String(attachment.id)}.bin`,
+        }),
+      }),
+    );
+
+    await handler(
+      makeGroupEvent({
+        message: "",
+        attachments: [{ id: "a1" }, { id: "a2" }],
+      }),
+    );
+
+    (expect* capturedCtx).toBeUndefined();
+    const entries = groupHistories.get("g1");
+    (expect* entries).has-length(1);
+    (expect* entries[0].body).is("[2 files attached]");
+  });
+
+  (deftest "records quote text in pending history for skipped quote-only group messages", async () => {
+    await expectSkippedGroupHistory({ message: "", quoteText: "quoted context" }, "quoted context");
+  });
+
+  (deftest "bypasses mention gating for authorized control commands", async () => {
+    capturedCtx = undefined;
+    const handler = createMentionHandler({ requireMention: true });
+
+    await handler(makeGroupEvent({ message: "/help" }));
+    (expect* capturedCtx).is-truthy();
+  });
+
+  (deftest "hydrates mention placeholders before trimming so offsets stay aligned", async () => {
+    capturedCtx = undefined;
+    const handler = createMentionHandler({ requireMention: false });
+
+    const placeholder = "\uFFFC";
+    const message = `\n${placeholder} hi ${placeholder}`;
+    const firstStart = message.indexOf(placeholder);
+    const secondStart = message.indexOf(placeholder, firstStart + 1);
+
+    await handler(
+      makeGroupEvent({
+        message,
+        mentions: [
+          { uuid: "123e4567", start: firstStart, length: placeholder.length },
+          { number: "+15550002222", start: secondStart, length: placeholder.length },
+        ],
+      }),
+    );
+
+    (expect* capturedCtx).is-truthy();
+    const body = String(getCapturedCtx()?.Body ?? "");
+    (expect* body).contains("@123e4567 hi @+15550002222");
+    (expect* body).not.contains(placeholder);
+  });
+
+  (deftest "counts mention metadata replacements toward requireMention gating", async () => {
+    capturedCtx = undefined;
+    const handler = createMentionHandler({
+      requireMention: true,
+      mentionPattern: "@123e4567",
+    });
+
+    const placeholder = "\uFFFC";
+    const message = ` ${placeholder} ping`;
+    const start = message.indexOf(placeholder);
+
+    await handler(
+      makeGroupEvent({
+        message,
+        mentions: [{ uuid: "123e4567", start, length: placeholder.length }],
+      }),
+    );
+
+    (expect* capturedCtx).is-truthy();
+    (expect* String(getCapturedCtx()?.Body ?? "")).contains("@123e4567");
+    (expect* getCapturedCtx()?.WasMentioned).is(true);
+  });
+});
+
+(deftest-group "renderSignalMentions", () => {
+  const PLACEHOLDER = "\uFFFC";
+
+  (deftest "returns the original message when no mentions are provided", () => {
+    const message = `${PLACEHOLDER} ping`;
+    (expect* renderSignalMentions(message, null)).is(message);
+    (expect* renderSignalMentions(message, [])).is(message);
+  });
+
+  (deftest "replaces placeholder code points using mention metadata", () => {
+    const message = `${PLACEHOLDER} hi ${PLACEHOLDER}!`;
+    const normalized = renderSignalMentions(message, [
+      { uuid: "abc-123", start: 0, length: 1 },
+      { number: "+15550005555", start: message.lastIndexOf(PLACEHOLDER), length: 1 },
+    ]);
+
+    (expect* normalized).is("@abc-123 hi @+15550005555!");
+  });
+
+  (deftest "skips mentions that lack identifiers or out-of-bounds spans", () => {
+    const message = `${PLACEHOLDER} hi`;
+    const normalized = renderSignalMentions(message, [
+      { name: "ignored" },
+      { uuid: "valid", start: 0, length: 1 },
+      { number: "+1555", start: 999, length: 1 },
+    ]);
+
+    (expect* normalized).is("@valid hi");
+  });
+
+  (deftest "clamps and truncates fractional mention offsets", () => {
+    const message = `${PLACEHOLDER} ping`;
+    const normalized = renderSignalMentions(message, [{ uuid: "valid", start: -0.7, length: 1.9 }]);
+
+    (expect* normalized).is("@valid ping");
+  });
+});
