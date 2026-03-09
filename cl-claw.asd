@@ -125,9 +125,19 @@
                    (:file "safe-bin")
                    (:file "external-content")
                    (:file "audit" :depends-on ("ssrf"))))
+                 (:module "context-engine"
+                  :depends-on ("infra" "config" "sessions")
+                  :components
+                  ((:file "types")
+                   (:file "tokens" :depends-on ("types"))
+                   (:file "workspace" :depends-on ("types"))
+                   (:file "prompt" :depends-on ("types" "tokens" "workspace"))
+                   (:file "history" :depends-on ("types" "tokens"))
+                   (:file "registry" :depends-on ("types"))
+                   (:file "core" :depends-on ("types" "tokens" "workspace" "prompt" "history" "registry"))))
                  (:module "gateway"
                   :depends-on ("infra" "config" "sessions" "routing" "providers"
-                               "security" "agents" "channels")
+                               "security" "agents" "channels" "context-engine")
                   :components
                   ((:file "server")
                    (:file "auth" :depends-on ("server"))
