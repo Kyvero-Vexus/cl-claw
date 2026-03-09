@@ -20,6 +20,8 @@
            :outside-workspace-error-p))
 (in-package :cl-claw.infra.fs-safe)
 
+(declaim (optimize (safety 3) (debug 3)))
+
 ;;; Conditions
 
 (define-condition safe-open-error (error)
@@ -35,6 +37,7 @@
                      (slot-value c 'message))))
   (:documentation "Error signaled when a safe filesystem operation fails."))
 
+(declaim (ftype (function (t) boolean) outside-workspace-error-p))
 (defun outside-workspace-error-p (condition)
   "Return T if CONDITION is a safe-open-error with :outside-workspace code."
   (and (typep condition 'safe-open-error)
@@ -42,6 +45,7 @@
 
 ;;; Path utilities
 
+(declaim (ftype (function (string &key (:home (or null string))) string) expand-home-prefix))
 (defun expand-home-prefix (path &key home)
   "Expand a ~/... path using HOME (defaults to HOME environment variable).
 Non-tilde paths are returned unchanged."
@@ -58,6 +62,7 @@ Non-tilde paths are returned unchanged."
                          (uiop:ensure-directory-pathname home-dir))))
       (t path))))
 
+(declaim (ftype (function (t) (or null string)) resolve-canonical))
 (defun resolve-canonical (path)
   "Resolve PATH to its canonical form, following symlinks.
 Returns the resolved path string, or NIL if resolution fails."
@@ -65,6 +70,7 @@ Returns the resolved path string, or NIL if resolution fails."
       (uiop:native-namestring (truename path))
     (error () nil)))
 
+(declaim (ftype (function (t t) boolean) path-within-root-p))
 (defun path-within-root-p (path root)
   "Return T if PATH (canonical) is within ROOT (canonical)."
   (let* ((root-str (uiop:native-namestring (uiop:ensure-directory-pathname root)))
@@ -72,6 +78,7 @@ Returns the resolved path string, or NIL if resolution fails."
     (and (>= (length path-str) (length root-str))
          (string= (subseq path-str 0 (length root-str)) root-str))))
 
+(declaim (ftype (function (t t) string) ensure-within-root))
 (defun ensure-within-root (path root)
   "Verify PATH is within ROOT after resolving symlinks.
 Signals SAFE-OPEN-ERROR with :outside-workspace if traversal is detected."
@@ -103,6 +110,7 @@ Signals SAFE-OPEN-ERROR with :outside-workspace if traversal is detected."
 
 ;;; File reading
 
+(declaim (ftype (function (string &key (:max-bytes (or null integer))) string) read-local-file-safely))
 (defun read-local-file-safely (path &key (max-bytes nil))
   "Read a local file safely with optional MAX-BYTES limit.
 Signals SAFE-OPEN-ERROR if path is a directory or exceeds max-bytes.
@@ -131,6 +139,7 @@ Returns the file content as a string."
                :message (format nil "File ~a exceeds max-bytes limit of ~a" path max-bytes)))
       content)))
 
+(declaim (ftype (function (string string &key (:max-bytes (or null integer))) string) read-file-within-root))
 (defun read-file-within-root (root relative-path &key (max-bytes nil))
   "Read a file at RELATIVE-PATH within ROOT directory safely.
 Prevents directory traversal outside ROOT.
@@ -148,6 +157,7 @@ Returns file content as a string."
              :message (format nil "Path is a directory: ~a" relative-path)))
     (read-local-file-safely canonical :max-bytes max-bytes)))
 
+(declaim (ftype (function (string string &key (:max-bytes (or null integer))) string) read-path-within-root))
 (defun read-path-within-root (root absolute-path &key (max-bytes nil))
   "Read a file at ABSOLUTE-PATH, verifying it is within ROOT.
 Returns file content as a string."
@@ -160,6 +170,7 @@ Returns file content as a string."
              :message (format nil "Path is a directory: ~a" absolute-path)))
     (read-local-file-safely canonical :max-bytes max-bytes)))
 
+(declaim (ftype (function (string) function) create-root-scoped-read-file))
 (defun create-root-scoped-read-file (root)
   "Return a closure that reads files within ROOT safely.
 The closure accepts a relative path and optional max-bytes keyword."
@@ -169,6 +180,7 @@ The closure accepts a relative path and optional max-bytes keyword."
 
 ;;; File writing
 
+(declaim (ftype (function (string string string &key (:encoding t)) string) write-file-within-root))
 (defun write-file-within-root (root relative-path content &key (encoding :utf-8))
   "Write CONTENT to RELATIVE-PATH within ROOT atomically.
 Uses a temporary file and rename for atomicity.
@@ -216,6 +228,7 @@ Signals SAFE-OPEN-ERROR if path traversal is detected."
           (ignore-errors (delete-file temp-path))
           (error e))))))
 
+(declaim (ftype (function (string string string &key (:max-bytes (or null integer))) string) copy-file-within-root))
 (defun copy-file-within-root (root source-relative dest-relative &key (max-bytes nil))
   "Copy SOURCE-RELATIVE to DEST-RELATIVE within ROOT safely.
 Both paths must resolve within ROOT."
@@ -223,6 +236,7 @@ Both paths must resolve within ROOT."
   (let ((content (read-file-within-root root source-relative :max-bytes max-bytes)))
     (write-file-within-root root dest-relative content)))
 
+(declaim (ftype (function (string string string &key (:max-bytes (or null integer))) string) write-file-from-path-within-root))
 (defun write-file-from-path-within-root (root relative-dest source-absolute &key (max-bytes nil))
   "Write file from SOURCE-ABSOLUTE to RELATIVE-DEST within ROOT.
 SOURCE-ABSOLUTE must be a readable file (not necessarily within root).
@@ -233,6 +247,7 @@ RELATIVE-DEST must resolve within ROOT."
 
 ;;; Safe file open (low-level)
 
+(declaim (ftype (function (string string &key (:direction keyword) (:if-does-not-exist keyword)) stream) open-file-within-root))
 (defun open-file-within-root (root relative-path &key (direction :input) (if-does-not-exist :error))
   "Open a file at RELATIVE-PATH within ROOT safely.
 Returns an open stream. Caller must close it."

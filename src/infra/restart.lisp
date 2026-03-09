@@ -10,6 +10,9 @@
            :parse-pids-from-lsof-output))
 (in-package :cl-claw.infra.restart)
 
+(declaim (optimize (safety 3) (debug 3)))
+
+(declaim (ftype (function (string (integer 0) &key (:timeout-ms (integer 0))) (values string integer t)) run-lsof))
 (defun run-lsof (lsof-path port &key (timeout-ms 2000))
   "Run lsof to find processes listening on PORT.
 Returns (values stdout exit-status error) where error is NIL on success."
@@ -29,6 +32,7 @@ Returns (values stdout exit-status error) where error is NIL on success."
     (error (e)
       (values "" 1 e))))
 
+(declaim (ftype (function (string &key (:current-pid (or null integer))) list) parse-pids-from-lsof-output))
 (defun parse-pids-from-lsof-output (stdout &key (current-pid nil))
   "Parse lsof -Fpc output and return PIDs of openclaw gateway processes.
 
@@ -65,6 +69,7 @@ Filters out the current process (CURRENT-PID) and non-openclaw processes."
              (push current-entry-pid pids))))))
     (nreverse pids)))
 
+(declaim (ftype (function ((integer 0) &key (:lsof-command string) (:timeout-ms (integer 0))) list) find-gateway-pids-on-port-sync))
 (defun find-gateway-pids-on-port-sync (port &key (lsof-command "/usr/sbin/lsof") (timeout-ms 2000))
   "Find PIDs of openclaw gateway processes listening on PORT.
 
@@ -81,12 +86,14 @@ On Windows (non-Unix), returns empty list."
 (defparameter *sleep-sync-override* nil
   "Override for sleep function, used in tests.")
 
+(declaim (ftype (function (real) t) sleep-ms))
 (defun sleep-ms (ms)
   "Sleep for MS milliseconds, respecting any test override."
   (if *sleep-sync-override*
       (funcall *sleep-sync-override* ms)
       (sleep (/ ms 1000.0))))
 
+(declaim (ftype (function (&optional (or null (integer 0))) list) clean-stale-gateway-processes-sync))
 (defun clean-stale-gateway-processes-sync (&optional port)
   "Find and kill stale gateway processes on the gateway port.
 

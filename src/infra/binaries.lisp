@@ -3,6 +3,7 @@
   (:export :ensure-binary))
 (in-package :cl-claw.infra.binaries)
 
+(declaim (ftype (function (string &key (:exec-fn function) (:runtime list)) (or t null)) ensure-binary))
 (defun ensure-binary (binary-name &key (exec-fn #'uiop:run-program) (runtime (list :log (lambda (x) (print x)) :error (lambda (x) (error x)) :exit #'uiop:quit)))
   (handler-case (progn
                   (funcall exec-fn (format nil "which ~a" binary-name) :output :string)

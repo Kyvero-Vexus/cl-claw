@@ -27,6 +27,8 @@
            :resolve-proxy-url))
 (in-package :cl-claw.infra.net)
 
+(declaim (optimize (safety 3) (debug 3)))
+
 ;;; Conditions
 
 (define-condition ssrf-error (error)
@@ -64,6 +66,7 @@
    "^169\\.254\\.169\\.254$")
   "Patterns for private/SSRF-dangerous addresses.")
 
+(declaim (ftype (function (string) boolean) safe-private-ip-p))
 (defun safe-private-ip-p (host)
   "Return T if HOST matches a private/internal IP range or hostname.
 These should be blocked in SSRF protection."
@@ -77,6 +80,7 @@ These should be blocked in SSRF protection."
   '("localhost" "metadata" "metadata.google.internal" "169.254.169.254")
   "Hostnames that should always be blocked for SSRF protection.")
 
+(declaim (ftype (function (string) (or null string)) extract-host-from-url))
 (defun extract-host-from-url (url-string)
   "Extract hostname from URL string. Returns hostname or NIL."
   (declare (type string url-string))
@@ -91,6 +95,7 @@ These should be blocked in SSRF protection."
                            (length rest))))
         (subseq rest 0 host-end)))))
 
+(declaim (ftype (function (string) string) validate-url-not-ssrf))
 (defun validate-url-not-ssrf (url-string)
   "Validate that URL-STRING is not an SSRF-dangerous URL.
 Signals SSRF-ERROR if the URL targets a private/internal host.
@@ -135,6 +140,7 @@ Returns the URL string if it passes validation."
   (body "" :type string)
   (headers nil :type list))
 
+(declaim (ftype (function (&key (:env t)) (or null string)) resolve-proxy-url))
 (defun resolve-proxy-url (&key env)
   "Resolve the proxy URL from environment variables.
 Checks HTTPS_PROXY, HTTP_PROXY, and https_proxy in that order."
@@ -152,6 +158,7 @@ Checks HTTPS_PROXY, HTTP_PROXY, and https_proxy in that order."
           (get-var "https_proxy")
           (get-var "http_proxy")))))
 
+(declaim (ftype (function ((or string fetch-options) &key (:validate-ssrf t) (:proxy (or null string))) fetch-response) fetch-url))
 (defun fetch-url (url-or-options &key (validate-ssrf t) (proxy nil))
   "Fetch a URL with optional SSRF validation and proxy support.
 

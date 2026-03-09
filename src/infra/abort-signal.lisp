@@ -26,6 +26,7 @@
   "Controller for creating and triggering abort signals."
   (signal (make-abort-signal-struct) :type abort-signal-struct))
 
+(declaim (ftype (function (abort-controller &optional t) t) trigger-abort))
 (defun trigger-abort (controller &optional reason)
   "Abort the controller's signal with optional reason."
   (declare (type abort-controller controller))
@@ -33,6 +34,7 @@
     (setf (abort-signal-struct-aborted signal) t)
     (setf (abort-signal-struct-reason signal) reason)))
 
+(declaim (ftype (function ((or null abort-signal-struct) &key (:timeout (or null real)) (:poll-interval real)) keyword) wait-for-abort-signal))
 (defun wait-for-abort-signal (signal &key (timeout nil) (poll-interval 0.01))
   "Wait for an abort signal to become aborted.
 

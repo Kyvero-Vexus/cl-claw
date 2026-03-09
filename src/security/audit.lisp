@@ -52,6 +52,7 @@
 
 ;;; ─── Security checks ─────────────────────────────────────────────────────────
 
+(declaim (ftype (function (t list) list) check-auth-mode))
 (defun check-auth-mode (config findings)
   "Warn if gateway auth mode is 'none' (no authentication)."
   (declare (type t config)
@@ -68,6 +69,7 @@
             findings))
     findings))
 
+(declaim (ftype (function (t list) list) check-open-dm-policy))
 (defun check-open-dm-policy (config findings)
   "Flag channels with dmPolicy=open and no wildcard allowFrom."
   (declare (type t config)
@@ -95,6 +97,7 @@
                     findings))))))
     findings))
 
+(declaim (ftype (function (t list) list) check-sandbox-mode))
 (defun check-sandbox-mode (config findings)
   "Warn if sandbox is disabled or running in host mode without restrictions."
   (declare (type t config)

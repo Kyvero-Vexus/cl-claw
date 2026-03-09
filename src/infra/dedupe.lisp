@@ -16,17 +16,21 @@
            :lru-dedupe-record))
 (in-package :cl-claw.infra.dedupe)
 
+(declaim (optimize (safety 3) (debug 3)))
+
 ;;; Simple deduplication tracker (unbounded)
 
 (defstruct dedupe-tracker
   "Tracks seen signatures for deduplication."
   (table (make-hash-table :test #'equal) :type hash-table))
 
+(declaim (ftype (function (dedupe-tracker t) boolean) dedupe-tracker-seen-p))
 (defun dedupe-tracker-seen-p (tracker signature)
   "Return T if SIGNATURE has already been seen."
   (declare (type dedupe-tracker tracker))
   (nth-value 1 (gethash signature (dedupe-tracker-table tracker))))
 
+(declaim (ftype (function (dedupe-tracker t) boolean) dedupe-tracker-record))
 (defun dedupe-tracker-record (tracker signature)
   "Record SIGNATURE as seen. Returns T if it was new (not a duplicate)."
   (declare (type dedupe-tracker tracker))
@@ -34,6 +38,7 @@
     (setf (gethash signature (dedupe-tracker-table tracker)) t)
     (not already-seen)))
 
+(declaim (ftype (function (dedupe-tracker t) boolean) dedupe-tracker-seen-and-record))
 (defun dedupe-tracker-seen-and-record (tracker signature)
   "Check and record SIGNATURE atomically.
 Returns T if it was already seen (is a duplicate), NIL if it was new."
@@ -42,6 +47,7 @@ Returns T if it was already seen (is a duplicate), NIL if it was new."
     (setf (gethash signature (dedupe-tracker-table tracker)) t)
     was-seen))
 
+(declaim (ftype (function (dedupe-tracker &optional t) t) dedupe-tracker-clear))
 (defun dedupe-tracker-clear (tracker &optional signature)
   "Clear all seen signatures, or just SIGNATURE if provided."
   (declare (type dedupe-tracker tracker))
@@ -49,6 +55,7 @@ Returns T if it was already seen (is a duplicate), NIL if it was new."
       (remhash signature (dedupe-tracker-table tracker))
       (clrhash (dedupe-tracker-table tracker))))
 
+(declaim (ftype (function (dedupe-tracker) (integer 0)) dedupe-tracker-size))
 (defun dedupe-tracker-size (tracker)
   "Return the number of tracked signatures."
   (declare (type dedupe-tracker tracker))
@@ -67,15 +74,18 @@ Returns T if it was already seen (is a duplicate), NIL if it was new."
 ;; Public type alias
 (deftype lru-dedupe () 'lru-dedupe-state)
 
+(declaim (ftype (function (&key (:max-size (integer 1))) lru-dedupe-state) make-lru-dedupe))
 (defun make-lru-dedupe (&key (max-size 1000))
   "Create an LRU-bounded dedupe tracker with MAX-SIZE capacity."
   (%make-lru-dedupe-state :max-size max-size))
 
+(declaim (ftype (function (lru-dedupe-state t) boolean) lru-dedupe-seen-p))
 (defun lru-dedupe-seen-p (lru signature)
   "Return T if SIGNATURE has been seen in this LRU tracker."
   (declare (type lru-dedupe-state lru))
   (nth-value 1 (gethash signature (lru-dedupe-state-table lru))))
 
+(declaim (ftype (function (lru-dedupe-state t) boolean) lru-dedupe-record))
 (defun lru-dedupe-record (lru signature)
   "Record SIGNATURE. Returns T if it was new (not a duplicate).
 Evicts oldest entry when max-size is exceeded."

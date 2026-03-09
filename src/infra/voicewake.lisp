@@ -18,6 +18,8 @@
            :*default-cooldown-ms*))
 (in-package :cl-claw.infra.voicewake)
 
+(declaim (optimize (safety 3) (debug 3)))
+
 (defparameter *default-wake-words*
   '("hey openclaw" "ok openclaw" "openclaw" "hey claude" "ok claude")
   "Default wake word phrases to detect.")
@@ -38,11 +40,13 @@
   (last-event nil :type (or null voicewake-event))
   (enabled t :type boolean))
 
+(declaim (ftype (function () integer) current-time-ms))
 (defun current-time-ms ()
   "Return current time in milliseconds."
   (let ((now (get-universal-time)))
     (* (- now 2208988800) 1000)))
 
+(declaim (ftype (function (voicewake-detector) boolean) voicewake-active-p))
 (defun voicewake-active-p (detector)
   "Return T if the detector is within the cooldown period after a wake event."
   (declare (type voicewake-detector detector))
@@ -53,10 +57,12 @@
                             1000)))
         (< elapsed-ms (voicewake-detector-cooldown-ms detector))))))
 
+(declaim (ftype (function (string) string) normalize-text))
 (defun normalize-text (text)
   "Normalize TEXT for wake word matching: lowercase and trim."
   (string-downcase (string-trim '(#\Space #\Tab #\Newline) text)))
 
+(declaim (ftype (function (voicewake-detector string &key (:confidence real)) (or null voicewake-event)) detect-wake-word))
 (defun detect-wake-word (detector text &key (confidence 1.0))
   "Check if TEXT contains a wake word. Returns a VOICEWAKE-EVENT or NIL.
 
@@ -84,6 +90,7 @@ Returns NIL if:
             (return-from detect-wake-word event)))))
     nil))
 
+(declaim (ftype (function (voicewake-detector) t) reset-voicewake))
 (defun reset-voicewake (detector)
   "Reset the detector's wake state (clear last event, exit cooldown)."
   (declare (type voicewake-detector detector))

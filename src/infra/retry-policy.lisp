@@ -18,11 +18,14 @@
            :*transient-error-pattern*))
 (in-package :cl-claw.infra.retry-policy)
 
+(declaim (optimize (safety 3) (debug 3)))
+
 (defparameter *transient-error-pattern*
   nil
   "Regex pattern for detecting transient network errors that should be retried.
 Initialized lazily to avoid compile-time dependency on cl-ppcre.")
 
+(declaim (ftype (function () t) ensure-transient-pattern))
 (defun ensure-transient-pattern ()
   "Lazily initialize the transient error pattern."
   (unless *transient-error-pattern*
@@ -41,11 +44,13 @@ Initialized lazily to avoid compile-time dependency on cl-ppcre.")
   (should-retry nil :type (or null function))
   (strict-should-retry nil :type boolean))
 
+(declaim (ftype (function (t) boolean) transient-error-p))
 (defun transient-error-p (condition)
   "Return T if CONDITION looks like a transient network error by regex."
   (let ((msg (format nil "~a" condition)))
     (not (null (cl-ppcre:scan (ensure-transient-pattern) msg)))))
 
+(declaim (ftype (function (&key (:options (or null retry-runner-options))) function) make-retry-runner))
 (defun make-retry-runner (&key (options nil))
   "Create a retry runner function from OPTIONS (a retry-runner-options struct).
 
@@ -85,6 +90,7 @@ The returned function takes a thunk FN and runs it with retry logic:
                              (sleep (/ delay 1000.0))))))))
           (when last-error (error last-error)))))))
 
+(declaim (ftype (function (&key (:retry list) (:should-retry (or null function)) (:strict-should-retry boolean)) function) create-telegram-retry-runner))
 (defun create-telegram-retry-runner (&key retry should-retry (strict-should-retry nil))
   "Create a Telegram-specific retry runner.
 
@@ -100,6 +106,7 @@ STRICT-SHOULD-RETRY, when T, makes the predicate authoritative (suppresses regex
                :strict-should-retry strict-should-retry)))
     (make-retry-runner :options opts)))
 
+(declaim (ftype (function (function function &optional t) t) run-with-retry))
 (defun run-with-retry (runner fn &optional label)
   "Run FN using RUNNER (created by make-retry-runner or create-telegram-retry-runner)."
   (funcall runner fn label))

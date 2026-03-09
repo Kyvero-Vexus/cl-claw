@@ -110,6 +110,7 @@
 
 ;;; ─── Lane worker thread ──────────────────────────────────────────────────────
 
+(declaim (ftype (function (lane fixnum) t) run-lane-worker))
 (defun run-lane-worker (lane generation)
   "Run tasks from LANE until queue is empty (for generation GENERATION)."
   (declare (type lane lane)
@@ -145,6 +146,7 @@
           (decf (lane-active lane))
           (bt:condition-notify (lane-cvar lane)))))))
 
+(declaim (ftype (function (lane function) cons) enqueue-to-lane))
 (defun enqueue-to-lane (lane thunk)
   "Add THUNK to LANE's queue. Returns a mailbox (cons status value) for the result.
 Signals GATEWAY-DRAINING-ERROR if draining. Signals COMMAND-LANE-CLEARED-ERROR if lane
@@ -165,6 +167,7 @@ was cleared while waiting."
      :name "cl-claw-lane-worker")
     mailbox))
 
+(declaim (ftype (function (cons) t) wait-for-mailbox))
 (defun wait-for-mailbox (mailbox)
   "Block until MAILBOX has a result, then return it or signal the stored error."
   (declare (type cons mailbox))

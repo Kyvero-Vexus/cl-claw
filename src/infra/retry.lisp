@@ -13,6 +13,8 @@
            :retry-error-message))
 (in-package :cl-claw.infra.retry)
 
+(declaim (optimize (safety 3) (debug 3)))
+
 (define-condition retry-error (error)
   ((message :initarg :message :reader retry-error-message)
    (cause :initarg :cause :reader retry-error-cause))
@@ -28,11 +30,13 @@
   (on-retry nil :type (or null function))
   (should-retry nil :type (or null function)))
 
+(declaim (ftype (function (real real real) real) clamp))
 (defun clamp (value min max)
   "Clamp VALUE between MIN and MAX."
   (declare (type real value min max))
   (max min (min max value)))
 
+(declaim (ftype (function (retry-options (integer 1)) real) calculate-delay))
 (defun calculate-delay (options attempt)
   "Calculate the delay in milliseconds for the given attempt."
   (declare (type retry-options options)
@@ -49,6 +53,7 @@
            (retry-options-min-delay-ms options)
            (retry-options-max-delay-ms options))))
 
+(declaim (ftype (function (function &optional (or integer retry-options) real) t) retry-async))
 (defun retry-async (fn &optional (options-spec 3) (delay-ms 10))
   "Retry FN up to ATTEMPTS times with DELAY-MS between retries.
 

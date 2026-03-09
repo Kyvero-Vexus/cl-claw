@@ -14,6 +14,8 @@
            :reset-auto-migrate-for-test))
 (in-package :cl-claw.infra.state-migrations)
 
+(declaim (optimize (safety 3) (debug 3)))
+
 ;;; Legacy directory names to check (in priority order)
 (defparameter *legacy-dir-names*
   '(".clawdbot" ".moltbot" ".openclaw-legacy")
@@ -33,20 +35,24 @@
   (source nil :type (or null string))
   (target nil :type (or null string)))
 
+(declaim (ftype (function () t) reset-auto-migrate-for-test))
 (defun reset-auto-migrate-for-test ()
   "Reset migration state for testing purposes."
   (setf *migration-done* nil))
 
+(declaim (ftype (function (t) string) resolve-real-path))
 (defun resolve-real-path (path)
   "Resolve symlinks and return the canonical path, or PATH if resolution fails."
   (handler-case
       (uiop:native-namestring (truename path))
     (error () path)))
 
+(declaim (ftype (function (t) boolean) directory-p))
 (defun directory-p (path)
   "Return T if PATH exists and is a directory."
   (and (uiop:directory-exists-p path) t))
 
+(declaim (ftype (function (t) boolean) symlink-p))
 (defun symlink-p (path)
   "Return T if PATH is a symbolic link."
   (handler-case
@@ -54,6 +60,7 @@
         (= (logand (sb-posix:stat-mode stat) sb-posix:s-ifmt) sb-posix:s-iflnk))
     (error () nil)))
 
+(declaim (ftype (function (t) (values (or null string) (or null string))) find-legacy-source))
 (defun find-legacy-source (homedir)
   "Find the first existing legacy state directory under HOMEDIR.
 If the directory is a symlink, follows it to find the real target.
@@ -66,6 +73,7 @@ Returns (values source-path real-path) or NIL."
           (return-from find-legacy-source (values candidate real))))))
   nil)
 
+(declaim (ftype (function (t t) t) copy-directory-tree))
 (defun copy-directory-tree (source target)
   "Copy directory tree from SOURCE to TARGET, creating TARGET if needed."
   (uiop:ensure-all-directories-exist (list (uiop:ensure-directory-pathname target)))
@@ -74,6 +82,7 @@ Returns (values source-path real-path) or NIL."
                            target)
                     :ignore-error-status t))
 
+(declaim (ftype (function (&key (:env t) (:homedir t)) migration-result) auto-migrate-legacy-state-dir))
 (defun auto-migrate-legacy-state-dir (&key env homedir)
   "Migrate legacy state directory to ~/.openclaw if needed.
 

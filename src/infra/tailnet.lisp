@@ -16,6 +16,8 @@
            :tailnet-info-available))
 (in-package :cl-claw.infra.tailnet)
 
+(declaim (optimize (safety 3) (debug 3)))
+
 (defstruct tailnet-info
   "Information about tailnet/Tailscale connectivity."
   (ip nil :type (or null string))
@@ -26,6 +28,7 @@
   '("tailscale" "/usr/local/bin/tailscale" "/usr/bin/tailscale")
   "Paths to try for the tailscale CLI.")
 
+(declaim (ftype (function () (or null string)) find-tailscale-binary))
 (defun find-tailscale-binary ()
   "Find the tailscale binary, returning its path or NIL."
   (dolist (cmd *tailscale-check-commands*)
@@ -36,6 +39,7 @@
       (error () nil)))
   nil)
 
+(declaim (ftype (function (string) (or null string)) parse-tailscale-ip))
 (defun parse-tailscale-ip (output)
   "Parse tailscale IP from 'tailscale ip' command output.
 Returns the first non-IPv6 address, or NIL."
@@ -50,6 +54,7 @@ Returns the first non-IPv6 address, or NIL."
           (return-from parse-tailscale-ip trimmed))))
     nil))
 
+(declaim (ftype (function (&key (:timeout-ms (integer 0))) (or null string)) get-tailnet-ip))
 (defun get-tailnet-ip (&key (timeout-ms 2000))
   "Get the current Tailnet IP address.
 Returns the IP string or NIL if Tailscale is not available."
@@ -63,10 +68,12 @@ Returns the IP string or NIL if Tailscale is not available."
             (parse-tailscale-ip output))
         (error () nil)))))
 
+(declaim (ftype (function () boolean) tailnet-available-p))
 (defun tailnet-available-p ()
   "Return T if Tailscale/Tailnet is available on this system."
   (not (null (get-tailnet-ip))))
 
+(declaim (ftype (function () (or null string)) get-tailnet-hostname))
 (defun get-tailnet-hostname ()
   "Get the Tailscale hostname, or NIL if unavailable."
   (let ((binary (find-tailscale-binary)))
@@ -80,6 +87,7 @@ Returns the IP string or NIL if Tailscale is not available."
               (when match match)))
         (error () nil)))))
 
+(declaim (ftype (function () tailnet-info) tailnet-info))
 (defun tailnet-info ()
   "Get comprehensive tailnet info struct.
 Returns a TAILNET-INFO with availability, IP, and hostname."
@@ -89,6 +97,7 @@ Returns a TAILNET-INFO with availability, IP, and hostname."
      :hostname (when ip (get-tailnet-hostname))
      :available (not (null ip)))))
 
+(declaim (ftype (function (&key (:mode keyword) (:explicit-ip (or null string))) string) resolve-bind-address))
 (defun resolve-bind-address (&key (mode :auto) (explicit-ip nil))
   "Resolve the gateway bind address based on MODE.
 

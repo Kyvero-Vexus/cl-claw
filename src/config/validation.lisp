@@ -40,6 +40,7 @@
 
 ;;; ─── Validation rules ────────────────────────────────────────────────────────
 
+(declaim (ftype (function (t list) list) check-dm-policy-allowfrom))
 (defun check-dm-policy-allowfrom (config errors)
   "DM policy 'open' requires allowFrom with wildcard."
   (declare (type t config)
@@ -68,6 +69,7 @@
                         errors)))))))
     errors)))  ; closes let((channels)), defun
 
+(declaim (ftype (function (t list) list) check-logging-max-file-bytes))
 (defun check-logging-max-file-bytes (config errors)
   "maxFileBytes must be at least 1MB."
   (declare (type t config)
@@ -81,6 +83,7 @@
             errors))
     errors))
 
+(declaim (ftype (function (t list) list) check-gateway-tailscale-bind))
 (defun check-gateway-tailscale-bind (config errors)
   "gateway.bind must be a valid value."
   (declare (type t config)

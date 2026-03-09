@@ -18,6 +18,8 @@
            :diagnostic-event-timestamp))
 (in-package :cl-claw.infra.diagnostic-events)
 
+(declaim (optimize (safety 3) (debug 3)))
+
 (defstruct diagnostic-event
   "A single diagnostic event."
   (type nil :type (or null string))
@@ -33,10 +35,12 @@
 ;; Public type alias
 (deftype event-bus () 'event-bus-state)
 
+(declaim (ftype (function (&key (:max-events (integer 1))) event-bus-state) make-event-bus))
 (defun make-event-bus (&key (max-events 1000))
   "Create a new diagnostic event bus with MAX-EVENTS capacity."
   (%make-event-bus-state :max-events max-events))
 
+(declaim (ftype (function (event-bus-state string &optional t) diagnostic-event) emit-event))
 (defun emit-event (bus event-type &optional data)
   "Emit a diagnostic event of EVENT-TYPE with optional DATA to BUS.
 Notifies all subscribers registered for EVENT-TYPE or :all.
@@ -60,6 +64,7 @@ Keeps only the most recent MAX-EVENTS events."
           (funcall handler event))))
     event))
 
+(declaim (ftype (function (event-bus-state t function) cons) subscribe))
 (defun subscribe (bus event-type handler)
   "Subscribe HANDLER to events of EVENT-TYPE on BUS.
 EVENT-TYPE can be a string or :all for all events.
@@ -70,12 +75,14 @@ Returns a subscription token (used for unsubscribe)."
     (push entry (event-bus-state-subscribers bus))
     entry))
 
+(declaim (ftype (function (event-bus-state t) t) unsubscribe))
 (defun unsubscribe (bus subscription-token)
   "Remove a subscription from BUS using the token returned by SUBSCRIBE."
   (declare (type event-bus-state bus))
   (setf (event-bus-state-subscribers bus)
         (remove subscription-token (event-bus-state-subscribers bus) :test #'eq)))
 
+(declaim (ftype (function (event-bus-state &key (:event-type (or null string)) (:limit (or null integer))) list) get-events))
 (defun get-events (bus &key event-type limit)
   "Return events from BUS, optionally filtered by EVENT-TYPE and limited to LIMIT count."
   (declare (type event-bus-state bus))
@@ -89,11 +96,13 @@ Returns a subscription token (used for unsubscribe)."
         (last filtered limit)
         filtered)))
 
+(declaim (ftype (function (event-bus-state) t) clear-events))
 (defun clear-events (bus)
   "Clear all stored events from BUS."
   (declare (type event-bus-state bus))
   (setf (event-bus-state-events bus) nil))
 
+(declaim (ftype (function (event-bus-state) (integer 0)) event-bus-event-count))
 (defun event-bus-event-count (bus)
   "Return the number of events stored in BUS."
   (declare (type event-bus-state bus))

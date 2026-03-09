@@ -9,6 +9,7 @@
            :normalize-zai-env))
 (in-package :cl-claw.infra.env)
 
+(declaim (ftype (function ((or null string)) boolean) is-truthy-env-value))
 (defun is-truthy-env-value (value)
   "Check if VALUE is a truthy environment variable value.
 
@@ -23,6 +24,7 @@ Returns NIL for nil, empty string, or any other value."
             (string= lower "yes")
             (string= lower "on"))))))
 
+(declaim (ftype (function () t) normalize-zai-env))
 (defun normalize-zai-env ()
   "Normalize z.ai environment variables.
 
