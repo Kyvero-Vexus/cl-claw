@@ -1,5 +1,5 @@
 (asdf:defsystem #:cl-claw-tests
-  :description "Test suite for cl-claw ACP modules"
+  :description "Test suite for cl-claw"
   :depends-on (#:cl-claw #:fiveam)
   :components ((:module "tests"
                 :components
@@ -14,5 +14,17 @@
                    (:file "client-test" :depends-on ("package"))
                    (:file "translator-test" :depends-on ("package"))
                    (:file "server-test" :depends-on ("package"))
-                   (:file "core-test" :depends-on ("package")))))))
-  :perform (test-op (o s) (uiop:symbol-call :fiveam :run! :cl-claw.acp.tests)))
+                   (:file "core-test" :depends-on ("package"))))
+                 (:module "agents"
+                  :depends-on ("acp")
+                  :components
+                  ((:file "package")
+                   (:file "core-test" :depends-on ("package"))
+                   (:file "sandbox-test" :depends-on ("package"))
+                   (:file "auth-test" :depends-on ("package"))
+                   (:file "bash-test" :depends-on ("package"))
+                   (:file "spawn-test" :depends-on ("package"))
+                   (:file "patch-test" :depends-on ("package")))))))
+  :perform (test-op (o s)
+             (uiop:symbol-call :fiveam :run! :cl-claw.acp.tests)
+             (uiop:symbol-call :fiveam :run! :cl-claw.agents.tests)))
