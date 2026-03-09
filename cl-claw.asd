@@ -125,6 +125,17 @@
                    (:file "safe-bin")
                    (:file "external-content")
                    (:file "audit" :depends-on ("ssrf"))))
+                 (:module "tools"
+                  :depends-on ("infra" "config" "security")
+                  :components
+                  ((:file "types")
+                   (:file "dispatch" :depends-on ("types"))
+                   (:file "approval" :depends-on ("types" "dispatch"))
+                   (:file "file-ops" :depends-on ("types" "dispatch"))
+                   (:file "exec-tool" :depends-on ("types" "dispatch"))
+                   (:file "web-tools" :depends-on ("types" "dispatch"))
+                   (:file "browser-tool" :depends-on ("types" "dispatch"))
+                   (:file "core" :depends-on ("types" "dispatch" "approval" "file-ops" "exec-tool" "web-tools" "browser-tool"))))
                  (:module "context-engine"
                   :depends-on ("infra" "config" "sessions")
                   :components

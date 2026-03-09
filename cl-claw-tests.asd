@@ -87,7 +87,10 @@
                  (:file "fiveam-gateway-boot.test")))
                (:module "tests/cl-adapted/src/context-engine"
                 :components
-                ((:file "fiveam-context-engine.test"))))
+                ((:file "fiveam-context-engine.test")))
+               (:module "tests/cl-adapted/src/tools"
+                :components
+                ((:file "fiveam-tools.test"))))
   :perform (asdf:test-op (op c)
              (flet ((run-suite (suite-sym pkg-name)
                       (let ((suite (find-symbol (string-upcase suite-sym)
@@ -136,4 +139,6 @@
                (run-suite "gateway-auth-suite" :cl-claw.gateway.auth.test)
                (run-suite "gateway-boot-suite" :cl-claw.gateway.boot.test)
                ;; Context engine domain
-               (run-suite "context-engine-suite" :cl-claw.context-engine.test))))
+               (run-suite "context-engine-suite" :cl-claw.context-engine.test)
+               ;; Tools domain
+               (run-suite "tools-suite" :cl-claw.tools.test))))
