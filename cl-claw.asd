@@ -79,12 +79,31 @@
                    (:file "signal")
                    (:file "slack")
                    (:file "imessage")))
+                 (:module "acp"
+                  :depends-on ("infra" "config" "sessions" "routing" "providers")
+                  :components
+                  ((:file "types")
+                   (:file "policy" :depends-on ("types"))
+                   (:file "session" :depends-on ("types"))
+                   (:file "runtime-cache" :depends-on ("types"))
+                   (:file "registry" :depends-on ("types"))
+                   (:file "persistent-bindings" :depends-on ("types"))
+                   (:file "client" :depends-on ("types"))
+                   (:file "translator" :depends-on ("types"))
+                   (:file "server" :depends-on ("types" "policy" "registry"))
+                   (:file "core" :depends-on ("types" "policy" "session" "runtime-cache"
+                                              "registry" "persistent-bindings" "client"
+                                              "translator" "server"))))
                  (:module "agents"
-                  :depends-on ("infra" "config" "sessions" "routing" "providers" "memory" "channels" "security")
+                  :depends-on ("infra" "config" "sessions" "routing" "providers" "memory" "channels" "security" "acp")
                   :components
                   ((:file "core")
                    (:file "sandbox-bind-spec")
-                   (:file "apply-patch")))
+                   (:file "apply-patch")
+                   (:file "auth-profiles")
+                   (:file "bash-tools" :depends-on ("core"))
+                   (:file "sandbox" :depends-on ("sandbox-bind-spec"))
+                   (:file "spawn" :depends-on ("core"))))
                  (:module "cli"
                   :depends-on ("infra" "config" "agents")
                   :components
