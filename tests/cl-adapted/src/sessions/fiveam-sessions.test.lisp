@@ -12,14 +12,20 @@
 
 (in-suite sessions-suite)
 
-(defun make-temp-store ()
-  (let* ((root (format nil "~a/cl-claw-sessions-~d"
-                       (uiop:native-namestring (uiop:temporary-directory))
-                       (random 1000000000)))
-         (store (cl-claw.sessions.store:create-session-store :root-dir root)))
-    (declare (type string root)
-             (type cl-claw.sessions.store:session-store store))
-    store))
+;; Use get-universal-time + a monotonic counter for truly unique temp dirs.
+;; SBCL's (random N) seed is deterministic at startup, so pure random numbers
+;; repeat across test runs and cause stale-file collisions.
+(let ((make-temp-store-counter 0))
+  (declare (type fixnum make-temp-store-counter))
+  (defun make-temp-store ()
+    (let* ((root (format nil "~a/cl-claw-sessions-~d-~d"
+                         (uiop:native-namestring (uiop:temporary-directory))
+                         (get-universal-time)
+                         (incf make-temp-store-counter)))
+           (store (cl-claw.sessions.store:create-session-store :root-dir root)))
+      (declare (type string root)
+               (type cl-claw.sessions.store:session-store store))
+      store)))
 
 (test normalize-session-key-lowercases-and-sanitizes
   (is (string= "discord_direct_user_123"
