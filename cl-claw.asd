@@ -153,6 +153,21 @@
                    (:file "media" :depends-on ("api-client"))
                    (:file "groups" :depends-on ("api-client"))
                    (:file "handler" :depends-on ("api-client" "media" "groups"))))
+                 (:module "discord"
+                  :depends-on ("infra" "channel-protocol")
+                  :components
+                  ((:file "rest-client")
+                   (:file "gateway" :depends-on ("rest-client"))
+                   (:file "media")
+                   (:file "threads" :depends-on ("rest-client"))
+                   (:file "handler" :depends-on ("rest-client" "media" "threads"))))
+                 (:module "irc-client"
+                  :depends-on ("infra" "channel-protocol")
+                  :components
+                  ((:file "connection")
+                   (:file "parser")
+                   (:file "resilience" :depends-on ("connection"))
+                   (:file "handler" :depends-on ("connection" "parser" "resilience"))))
                  (:module "context-engine"
                   :depends-on ("infra" "config" "sessions")
                   :components

@@ -96,7 +96,13 @@
                 ((:file "fiveam-channel-protocol.test")))
                (:module "tests/cl-adapted/src/telegram"
                 :components
-                ((:file "fiveam-telegram.test"))))
+                ((:file "fiveam-telegram.test")))
+               (:module "tests/cl-adapted/src/discord"
+                :components
+                ((:file "fiveam-discord.test")))
+               (:module "tests/cl-adapted/src/irc-client"
+                :components
+                ((:file "fiveam-irc.test"))))
   :perform (asdf:test-op (op c)
              (flet ((run-suite (suite-sym pkg-name)
                       (let ((suite (find-symbol (string-upcase suite-sym)
@@ -151,4 +157,8 @@
                ;; Channel protocol domain
                (run-suite "channel-protocol-suite" :cl-claw.channel-protocol.test)
                ;; Telegram domain
-               (run-suite "telegram-suite" :cl-claw.telegram.test))))
+               (run-suite "telegram-suite" :cl-claw.telegram.test)
+               ;; Discord domain
+               (run-suite "discord-suite" :cl-claw.discord.test)
+               ;; IRC domain
+               (run-suite "irc-suite" :cl-claw.irc-client.test))))
