@@ -90,7 +90,10 @@
                 ((:file "fiveam-context-engine.test")))
                (:module "tests/cl-adapted/src/tools"
                 :components
-                ((:file "fiveam-tools.test"))))
+                ((:file "fiveam-tools.test")))
+               (:module "tests/cl-adapted/src/channel-protocol"
+                :components
+                ((:file "fiveam-channel-protocol.test"))))
   :perform (asdf:test-op (op c)
              (flet ((run-suite (suite-sym pkg-name)
                       (let ((suite (find-symbol (string-upcase suite-sym)
@@ -141,4 +144,6 @@
                ;; Context engine domain
                (run-suite "context-engine-suite" :cl-claw.context-engine.test)
                ;; Tools domain
-               (run-suite "tools-suite" :cl-claw.tools.test))))
+               (run-suite "tools-suite" :cl-claw.tools.test)
+               ;; Channel protocol domain
+               (run-suite "channel-protocol-suite" :cl-claw.channel-protocol.test))))

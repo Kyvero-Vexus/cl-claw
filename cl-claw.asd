@@ -136,6 +136,16 @@
                    (:file "web-tools" :depends-on ("types" "dispatch"))
                    (:file "browser-tool" :depends-on ("types" "dispatch"))
                    (:file "core" :depends-on ("types" "dispatch" "approval" "file-ops" "exec-tool" "web-tools" "browser-tool"))))
+                 (:module "channel-protocol"
+                  :depends-on ("infra" "config" "routing")
+                  :components
+                  ((:file "types")
+                   (:file "lifecycle" :depends-on ("types"))
+                   (:file "normalize" :depends-on ("types"))
+                   (:file "format" :depends-on ("types"))
+                   (:file "queue" :depends-on ("types"))
+                   (:file "accounts" :depends-on ("types"))
+                   (:file "core" :depends-on ("types" "lifecycle" "normalize" "format" "queue" "accounts"))))
                  (:module "context-engine"
                   :depends-on ("infra" "config" "sessions")
                   :components
