@@ -17,13 +17,16 @@
                (cl-claw.routing:make-session-key "DisCord" "OPS" "User#123"))))
 
 (test parse-session-key-roundtrip
-  (let* ((key (cl-claw.routing:make-session-key "telegram" "default" "chat-10" :thread "77" :agent-id "ops"))
+  "parse-session-key returns a PARSED-SESSION-KEY struct (CL-idiomatic, no hash-table)."
+  (let* ((key (cl-claw.routing:make-session-key "telegram" "default" "chat-10"
+                                                  :thread "77" :agent-id "ops"))
          (parsed (cl-claw.routing:parse-session-key key)))
-    (is (string= "telegram" (gethash "provider" parsed)))
-    (is (string= "default" (gethash "account" parsed)))
-    (is (string= "chat-10" (gethash "target" parsed)))
-    (is (string= "77" (gethash "thread" parsed)))
-    (is (string= "ops" (gethash "agentId" parsed)))))
+    (declare (type cl-claw.routing:parsed-session-key parsed))
+    (is (string= "telegram" (cl-claw.routing:parsed-session-key-provider parsed)))
+    (is (string= "default"  (cl-claw.routing:parsed-session-key-account  parsed)))
+    (is (string= "chat-10"  (cl-claw.routing:parsed-session-key-target   parsed)))
+    (is (string= "77"       (cl-claw.routing:parsed-session-key-thread   parsed)))
+    (is (string= "ops"      (cl-claw.routing:parsed-session-key-agent-id parsed)))))
 
 (test resolve-route-for-inbound-is-stable
   (let* ((table (cl-claw.routing:create-route-table))

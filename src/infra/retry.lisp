@@ -1,11 +1,13 @@
 ;;;; retry.lisp - Retry utilities for cl-claw
 ;;;;
-;;;; Implements retry logic with configurable attempts, delays, and callbacks.
-;;;; Based on test specs from tests/cl-adapted/src/infra/retry.test.lisp
+;;;; Idiomatic CL retry library: use WITH-RETRY for new code.
+;;;; RETRY-ASYNC is retained as an alias for code ported from the TypeScript
+;;;; original — the name was a misnomer there too (execution is synchronous).
 
 (defpackage :cl-claw.infra.retry
   (:use :cl)
-  (:export :retry-async
+  (:export :retry-async          ; compat alias for WITH-RETRY
+           :with-retry           ; idiomatic CL entry point
            :retry-options
            :make-retry-options
            :retry-error
@@ -53,46 +55,59 @@
            (retry-options-min-delay-ms options)
            (retry-options-max-delay-ms options))))
 
-(declaim (ftype (function (function &optional (or integer retry-options) real) t) retry-async))
-(defun retry-async (fn &optional (options-spec 3) (delay-ms 10))
-  "Retry FN up to ATTEMPTS times with DELAY-MS between retries.
+(declaim (ftype (function (function &optional (or integer retry-options) real) t) with-retry))
+(defun with-retry (fn &optional (options-spec 3) (delay-ms 10))
+  "Retry FN up to OPTIONS-SPEC attempts, with DELAY-MS ms between retries.
 
-FN should be a function of no arguments that returns a value or signals an error.
+FN is a zero-argument function that returns a value or signals an error.
 
-OPTIONS-SPEC can be:
-- An integer (number of attempts)
-- A retry-options struct
+OPTIONS-SPEC may be:
+  - A positive integer: number of attempts (delay fixed at DELAY-MS)
+  - A RETRY-OPTIONS struct: full control over attempts, delays, jitter,
+    and the SHOULD-RETRY / ON-RETRY callbacks
 
-Returns the result of FN on success, or signals RETRY-ERROR on failure."
-  (declare (type (or integer retry-options) options-spec))
+Returns the result of FN on success.  Signals RETRY-ERROR when all attempts
+are exhausted."
+  (declare (type function fn)
+           (type (or integer retry-options) options-spec)
+           (type real delay-ms))
   (let* ((options (etypecase options-spec
-                    (integer (make-retry-options :attempts (max 1 options-spec)
+                    (integer (make-retry-options :attempts    (max 1 options-spec)
                                                  :min-delay-ms delay-ms
                                                  :max-delay-ms delay-ms))
                     (retry-options options-spec)))
          (max-attempts (max 1 (retry-options-attempts options)))
-         (last-error nil))
+         (last-error   nil))
     (loop :for attempt :from 1 :to max-attempts
           :do (handler-case
-                  (return-from retry-async (funcall fn))
+                  (return-from with-retry (funcall fn))
                 (error (e)
                   (setf last-error e)
-                  ;; Check should-retry
+                  ;; Honour the should-retry predicate when provided.
                   (when (and (retry-options-should-retry options)
                              (not (funcall (retry-options-should-retry options) e)))
-                    (error 'retry-error :message "shouldRetry returned false" :cause e))
-                  ;; If this wasn't the last attempt, retry
+                    (error 'retry-error
+                           :message "should-retry returned false"
+                           :cause e))
+                  ;; Sleep before the next attempt (not after the final failure).
                   (when (< attempt max-attempts)
                     (let ((delay (calculate-delay options attempt)))
-                      ;; Call on-retry callback if provided
                       (when (retry-options-on-retry options)
                         (funcall (retry-options-on-retry options)
-                                 (list :attempt attempt
+                                 (list :attempt      attempt
                                        :max-attempts max-attempts
-                                       :delay-ms delay)))
-                      ;; Sleep for the delay
+                                       :delay-ms     delay)))
                       (sleep (/ delay 1000.0)))))))
-    ;; All attempts exhausted
     (error 'retry-error
            :message (format nil "Retry exhausted after ~a attempts" max-attempts)
            :cause last-error)))
+
+;;; RETRY-ASYNC is kept as an alias — the name came from the TypeScript source
+;;; where async/await phrasing was natural; in CL it is simply WITH-RETRY.
+(declaim (ftype (function (function &optional (or integer retry-options) real) t) retry-async))
+(defun retry-async (fn &optional (options-spec 3) (delay-ms 10))
+  "Backward-compatible alias for WITH-RETRY.  Prefer WITH-RETRY in new code."
+  (declare (type function fn)
+           (type (or integer retry-options) options-spec)
+           (type real delay-ms))
+  (with-retry fn options-spec delay-ms))

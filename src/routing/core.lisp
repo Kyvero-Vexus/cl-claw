@@ -17,6 +17,13 @@
    :normalize-account-id
    :make-session-key
    :parse-session-key
+   :parsed-session-key
+   :parsed-session-key-provider
+   :parsed-session-key-account
+   :parsed-session-key-target
+   :parsed-session-key-thread
+   :parsed-session-key-topic
+   :parsed-session-key-agent-id
    :remember-route
    :resolve-route
    :resolve-route-for-inbound))
@@ -25,6 +32,7 @@
 
 (declaim (optimize (safety 3) (debug 3)))
 
+;;; ROUTE-ENTRY - canonical routing record (stored in the route table)
 (defstruct route-entry
   (provider "" :type string)
   (account "default" :type string)
@@ -32,6 +40,18 @@
   (thread nil :type (or string null))
   (topic nil :type (or string null))
   (agent-id "main" :type string))
+
+;;; PARSED-SESSION-KEY - idiomatic CL struct returned by PARSE-SESSION-KEY.
+;;; Previously this was returned as a hash-table with JS-style string keys;
+;;; using a struct allows compile-time slot access and type checking.
+(defstruct parsed-session-key
+  "Components parsed out of a session-key string."
+  (provider "unknown" :type string)
+  (account  "default" :type string)
+  (target   "unknown" :type string)
+  (thread   nil       :type (or string null))
+  (topic    nil       :type (or string null))
+  (agent-id "main"   :type string))
 
 (defstruct (route-table (:constructor %make-route-table))
   (lock (bt:make-lock "route-table-lock") :type t)
@@ -89,38 +109,38 @@
         (format out ":topic:~a" topic-part))
       (format out "@~a" (if (string= ag "") "main" ag)))))
 
-(declaim (ftype (function (string) hash-table) parse-session-key))
+(declaim (ftype (function (string) parsed-session-key) parse-session-key))
 (defun parse-session-key (session-key)
+  "Parse a SESSION-KEY string into a PARSED-SESSION-KEY struct.
+
+Session keys have the form:
+  provider:account:target[:thread:V][:topic:V]@agent-id"
   (declare (type string session-key))
-  (let* ((parts (uiop:split-string session-key :separator '(#\@)))
-         (lhs (if parts (first parts) session-key))
+  (let* ((parts    (uiop:split-string session-key :separator '(#\@)))
+         (lhs      (if parts (first parts) session-key))
          (agent-id (if (and parts (second parts)) (second parts) "main"))
-         (frags (uiop:split-string lhs :separator '(#\:)))
+         (frags    (uiop:split-string lhs :separator '(#\:)))
          (provider (or (nth 0 frags) "unknown"))
-         (account (or (nth 1 frags) "default"))
-         (target (or (nth 2 frags) "unknown"))
-         (thread nil)
-         (topic nil)
-         (obj (make-hash-table :test 'equal)))
+         (account  (or (nth 1 frags) "default"))
+         (target   (or (nth 2 frags) "unknown"))
+         (thread   nil)
+         (topic    nil))
     (declare (type list parts frags)
              (type string lhs agent-id provider account target)
-             (type (or string null) thread topic)
-             (type hash-table obj))
-    (loop for i from 3 below (length frags) by 2 do
-      (let ((k (nth i frags))
-            (v (nth (1+ i) frags)))
-        (declare (type (or string null) k v))
-        (when (and k v)
-          (cond
-            ((string= k "thread") (setf thread v))
-            ((string= k "topic") (setf topic v))))))
-    (setf (gethash "provider" obj) provider
-          (gethash "account" obj) account
-          (gethash "target" obj) target
-          (gethash "thread" obj) thread
-          (gethash "topic" obj) topic
-          (gethash "agentId" obj) agent-id)
-    obj))
+             (type (or string null) thread topic))
+    (loop :for i :from 3 :below (length frags) :by 2
+          :for k := (nth i frags)
+          :for v := (nth (1+ i) frags)
+          :when (and k v)
+            :do (cond
+                  ((string= k "thread") (setf thread v))
+                  ((string= k "topic")  (setf topic  v))))
+    (make-parsed-session-key :provider provider
+                             :account  account
+                             :target   target
+                             :thread   thread
+                             :topic    topic
+                             :agent-id agent-id)))
 
 (declaim (ftype (function (route-table route-entry) string) remember-route))
 (defun remember-route (table entry)
