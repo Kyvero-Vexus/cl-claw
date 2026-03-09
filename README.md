@@ -1,10 +1,30 @@
 # cl-claw
 
-Common Lisp–adapted specification corpus for OpenClaw.
+Common Lisp port of OpenClaw — statically typed, homoiconic, libre.
 
-This repository starts from an extracted OpenClaw spec corpus and rewrites it so
-that Common Lisp is the only implementation language assumed by the specs,
-without simplifying the underlying behavior.
+This repository contains a Common Lisp implementation adapted from the
+[OpenClaw](https://github.com/openclaw/openclaw) specification corpus.
+
+## License
+
+- **Implementation code** (`src/`): AGPL-3.0-or-later
+- **Adapted specs** (`specs/cl-adapted/`): Derived from OpenClaw (MIT)
+
+### OpenClaw Acknowledgement
+
+This project adapts specification and test materials from OpenClaw:
+
+```
+OpenClaw - https://github.com/openclaw/openclaw
+Copyright (c) 2025 Peter Steinberger
+Licensed under the MIT License
+```
+
+The full MIT license text is available at:
+https://opensource.org/licenses/MIT
+
+We gratefully acknowledge the OpenClaw project for providing the spec corpus
+that made this port possible.
 
 ## What this repo contains
 
