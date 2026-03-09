@@ -124,4 +124,12 @@
                   ((:file "ssrf")
                    (:file "safe-bin")
                    (:file "external-content")
-                   (:file "audit" :depends-on ("ssrf"))))))))
+                   (:file "audit" :depends-on ("ssrf"))))
+                 (:module "gateway"
+                  :depends-on ("infra" "config" "sessions" "routing" "providers"
+                               "security" "agents" "channels")
+                  :components
+                  ((:file "server")
+                   (:file "auth" :depends-on ("server"))
+                   (:file "boot")
+                   (:file "call" :depends-on ("auth"))))))))

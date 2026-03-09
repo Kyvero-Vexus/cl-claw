@@ -79,7 +79,12 @@
                 ((:file "fiveam-plugins.test")))
                (:module "tests/cl-adapted/src/browser"
                 :components
-                ((:file "fiveam-browser.test"))))
+                ((:file "fiveam-browser.test")))
+               (:module "tests/cl-adapted/src/gateway"
+                :components
+                ((:file "fiveam-gateway-server.test")
+                 (:file "fiveam-gateway-auth.test")
+                 (:file "fiveam-gateway-boot.test"))))
   :perform (asdf:test-op (op c)
              (flet ((run-suite (suite-sym pkg-name)
                       (let ((suite (find-symbol (string-upcase suite-sym)
@@ -122,4 +127,8 @@
                (run-suite "hooks-suite" :cl-claw.hooks.test)
                (run-suite "media-suite" :cl-claw.media.test)
                (run-suite "plugins-suite" :cl-claw.plugins.test)
-               (run-suite "browser-suite" :cl-claw.browser.test))))
+               (run-suite "browser-suite" :cl-claw.browser.test)
+               ;; Gateway domain
+               (run-suite "gateway-server-suite" :cl-claw.gateway.server.test)
+               (run-suite "gateway-auth-suite" :cl-claw.gateway.auth.test)
+               (run-suite "gateway-boot-suite" :cl-claw.gateway.boot.test))))
