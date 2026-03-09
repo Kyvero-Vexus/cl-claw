@@ -146,6 +146,13 @@
                    (:file "queue" :depends-on ("types"))
                    (:file "accounts" :depends-on ("types"))
                    (:file "core" :depends-on ("types" "lifecycle" "normalize" "format" "queue" "accounts"))))
+                 (:module "telegram"
+                  :depends-on ("infra" "channel-protocol")
+                  :components
+                  ((:file "api-client")
+                   (:file "media" :depends-on ("api-client"))
+                   (:file "groups" :depends-on ("api-client"))
+                   (:file "handler" :depends-on ("api-client" "media" "groups"))))
                  (:module "context-engine"
                   :depends-on ("infra" "config" "sessions")
                   :components
