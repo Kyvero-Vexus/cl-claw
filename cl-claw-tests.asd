@@ -24,7 +24,13 @@
                    (:file "auth-test" :depends-on ("package"))
                    (:file "bash-test" :depends-on ("package"))
                    (:file "spawn-test" :depends-on ("package"))
-                   (:file "patch-test" :depends-on ("package")))))))
+                   (:file "patch-test" :depends-on ("package"))))
+                 (:module "e2e"
+                  :depends-on ("acp" "agents")
+                  :components
+                  ((:file "package")
+                   (:file "crash-recovery-test" :depends-on ("package")))))))
   :perform (test-op (o s)
              (uiop:symbol-call :fiveam :run! :cl-claw.acp.tests)
-             (uiop:symbol-call :fiveam :run! :cl-claw.agents.tests)))
+             (uiop:symbol-call :fiveam :run! :cl-claw.agents.tests)
+             (uiop:symbol-call :fiveam :run! :cl-claw.e2e.tests)))
