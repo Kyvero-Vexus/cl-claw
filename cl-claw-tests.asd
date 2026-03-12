@@ -29,7 +29,8 @@
                   :depends-on ("acp" "agents")
                   :components
                   ((:file "package")
-                   (:file "crash-recovery-test" :depends-on ("package")))))))
+                   (:file "crash-recovery-test" :depends-on ("package"))
+                   (:file "multi-channel-concurrent-test" :depends-on ("package")))))))
   :perform (test-op (o s)
              (uiop:symbol-call :fiveam :run! :cl-claw.acp.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.agents.tests)
