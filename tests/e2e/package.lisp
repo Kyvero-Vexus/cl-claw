@@ -12,6 +12,9 @@
 (def-suite :e2e-crash-recovery :in :cl-claw.e2e.tests
   :description "Crash recovery & reconnection E2E tests")
 
+(def-suite :e2e-provider-streaming-tool :in :cl-claw.e2e.tests
+  :description "Provider call → streaming → tool dispatch → final response E2E tests")
+
 (defun run-e2e-tests ()
   "Run all E2E tests and return results."
   (run! :cl-claw.e2e.tests))
