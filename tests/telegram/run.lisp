@@ -1,0 +1,11 @@
+(ql:quickload :fiveam :silent t)
+(load "tests/telegram/package.lisp")
+(load "tests/telegram/telegram-test.lisp")
+(let ((results (fiveam:run :cl-claw.telegram.tests)))
+  (fiveam:explain! results)
+  (format t "~%Passed: ~A  Failed: ~A  Total: ~A~%"
+          (count-if (lambda (r) (typep r 'fiveam::test-passed)) results)
+          (count-if (lambda (r) (typep r 'fiveam::test-failure)) results)
+          (length results))
+  (unless (fiveam:results-status results)
+    (sb-ext:exit :code 1)))
