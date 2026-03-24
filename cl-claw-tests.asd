@@ -41,8 +41,12 @@
                   :depends-on ("acp")
                   :components
                   ((:file "package")))
+                 (:module "auto-reply"
+                  :depends-on ("acp")
+                  :components
+                  ((:file "package")))
                  (:module "e2e"
-                  :depends-on ("acp" "agents" "channels" "browser" "cron")
+                  :depends-on ("acp" "agents" "channels" "browser" "cron" "auto-reply")
                   :components
                   ((:file "package")
                    (:file "crash-recovery-test" :depends-on ("package"))
@@ -56,4 +60,5 @@
              (uiop:symbol-call :fiveam :run! :cl-claw.channels.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.browser.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.cron.tests)
+             (uiop:symbol-call :fiveam :run! :cl-claw.auto-reply.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.e2e.tests)))
