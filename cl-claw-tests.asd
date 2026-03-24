@@ -45,8 +45,12 @@
                   :depends-on ("acp")
                   :components
                   ((:file "package")))
+                 (:module "discord"
+                  :depends-on ("acp")
+                  :components
+                  ((:file "package")))
                  (:module "e2e"
-                  :depends-on ("acp" "agents" "channels" "browser" "cron" "auto-reply")
+                  :depends-on ("acp" "agents" "channels" "browser" "cron" "auto-reply" "discord")
                   :components
                   ((:file "package")
                    (:file "crash-recovery-test" :depends-on ("package"))
@@ -61,4 +65,5 @@
              (uiop:symbol-call :fiveam :run! :cl-claw.browser.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.cron.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.auto-reply.tests)
+             (uiop:symbol-call :fiveam :run! :cl-claw.discord.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.e2e.tests)))
