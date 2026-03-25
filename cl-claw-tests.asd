@@ -15,8 +15,16 @@
                    (:file "translator-test" :depends-on ("package"))
                    (:file "server-test" :depends-on ("package"))
                    (:file "core-test" :depends-on ("package"))))
-                 (:module "agents"
+                 (:module "config"
                   :depends-on ("acp")
+                  :components
+                  ((:file "package")
+                   (:file "env-substitution.test" :depends-on ("package"))
+                   (:file "merge-patch.test" :depends-on ("package"))
+                   (:file "schema.test" :depends-on ("package"))
+                   (:file "sessions.test" :depends-on ("package"))))
+                 (:module "agents"
+                  :depends-on ("acp" "config")
                   :components
                   ((:file "package")
                    (:file "core-test" :depends-on ("package"))
@@ -60,6 +68,7 @@
                    (:file "gateway-boot-roundtrip-test" :depends-on ("package")))))))
   :perform (test-op (o s)
              (uiop:symbol-call :fiveam :run! :cl-claw.acp.tests)
+             (uiop:symbol-call :fiveam :run! :cl-claw.config.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.agents.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.channels.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.browser.tests)
