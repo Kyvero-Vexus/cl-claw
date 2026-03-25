@@ -14,7 +14,8 @@
    :config-snapshot-resolved
    :config-snapshot-path
    :read-config-file-snapshot
-   :write-config-file))
+   :write-config-file
+   :resolve-env-refs-in-value))
 
 (in-package :cl-claw.config.io)
 
