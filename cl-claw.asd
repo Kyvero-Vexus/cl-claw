@@ -73,12 +73,13 @@
                  (:module "channels"
                   :depends-on ("routing" "sessions" "providers" "memory")
                   :components
-                  ((:file "telegram")
-                   (:file "irc")
-                   (:file "discord")
-                   (:file "signal")
-                   (:file "slack")
-                   (:file "imessage")))
+                  ((:file "channels")
+                   (:file "telegram" :depends-on ("channels"))
+                   (:file "irc" :depends-on ("channels"))
+                   (:file "discord" :depends-on ("channels"))
+                   (:file "signal" :depends-on ("channels"))
+                   (:file "slack" :depends-on ("channels"))
+                   (:file "imessage" :depends-on ("channels"))))
                  (:module "acp"
                   :depends-on ("infra" "config" "sessions" "routing" "providers")
                   :components

@@ -4,20 +4,16 @@
 
 (in-suite :channels-allowlists)
 
-(defun %make-allowlist-entry (user-id &optional (roles channels))
-  "Create an allowlist entry."
-  (let ((entry (make-hash-table)))
-    (setf (gethash "user-id" entry) user-id)
-    (when roles (setf (gethash "roles" entry) roles))
-    (when channels (setf (gethash "channels" entry) channels))
-    entry))
+(defun %make-allowlist-entry (user-id &key (roles '()))
+  "Create an allowlist entry struct."
+  (cl-claw.channels::make-allowlist-entry :id user-id :roles roles))
 
 (test allowlists-add-to-allowlist
   "Adds user to allowlist"
   (let ((mgr (cl-claw.channels:make-allowlist-manager)))
     (cl-claw.channels:allowlist-add mgr (%make-allowlist-entry "user1"))
     (let ((found (cl-claw.channels:allowlist-get mgr "user1")))
-      (is (not (null found)))))
+      (is (not (null found))))))
 
 (test allowlists-remove-from-allowlist
   "Removes user from allowlist"
@@ -37,7 +33,7 @@
   (let ((mgr (cl-claw.channels:make-allowlist-manager)))
     (cl-claw.channels:allowlist-add mgr (%make-allowlist-entry "user4" :roles '("user" "admin")))
     (let ((roles (cl-claw.channels:allowlist-get-roles mgr "user4")))
-      (is (not (null roles))
+      (is (not (null roles)))
       (is (= 2 (length roles))))))
 
 (test allowlists-update-roles
@@ -46,5 +42,5 @@
     (cl-claw.channels:allowlist-add mgr (%make-allowlist-entry "user5"))
     (cl-claw.channels:allowlist-update-roles mgr "user5" '("moderator"))
     (let ((roles (cl-claw.channels:allowlist-get-roles mgr "user5")))
-      (is (not (null roles))
-      (is (member "moderator" roles)))))
+      (is (not (null roles)))
+      (is (member "moderator" roles :test #'string=)))))

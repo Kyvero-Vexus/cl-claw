@@ -6,17 +6,19 @@
 
 (in-package :cl-claw.channels.tests)
 
+;; Main suite definition
 (def-suite :cl-claw.channels.tests
   :description "Channels module test suite")
 
-(def-suite :channels-config :in ?cl-claw.channels.tests)
-(def-suite :channels-session :in ?cl-claw.channels.tests)
-(def-suite :channels-allow-from :in ?cl-claw.channels.tests)
-(def-suite :channels-allowlists :in ?cl-claw.channels.tests)
+;; Sub-suites for organizing tests
+(def-suite :channels-config :description "Channel configuration tests")
+(def-suite :channels-session :description "Channel session tests")
+(def-suite :channels-allow-from :description "Allow-from validation tests")
+(def-suite :channels-allowlists :description "Allowlist tests")
 
 (defun run-channels-tests ()
   "Run all channels tests and return results."
-  (run! .cl-claw.channels.tests)
+  (run! :cl-claw.channels.tests))
 
 ;;; -- test helpers ------------------------------------------------------------
 
@@ -40,5 +42,4 @@
                (inner-ht (make-nested-config rest-path value))
                (ht (make-hash-table :test 'equal)))
           (setf (gethash (first keys) ht) inner-ht)
-          ht))))))
-
+          ht))))

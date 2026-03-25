@@ -33,14 +33,24 @@
       ;; TODO: Implement when is-sensitive-config-path function is available
       (skip "is-sensitive-config-path function not yet available"))))
 
-(test dm-policy-validation-rejects-invalid
-  "DM policy validation rejects invalid policies"
-  (let ((invalid-config (%hash "dmPolicy" "invalid-value")))
-    ;; The validate-dm-policy function exists in config/validation.lisp
-    (signals error (cl-claw.config.validation:validate-dm-policy invalid-config))))
+(test dm-policy-validation-open-requires-wildcard
+  "DM policy 'open' requires allowFrom to include '*'"
+  (let ((invalid-config (%hash "channels"
+                               (%hash "telegram"
+                                      (%hash "dmPolicy" "open"
+                                             "allowFrom" (list "123456789"))))))
+    ;; validate-config returns a list of validation errors
+    (let ((errors (cl-claw.config.validation:validate-config invalid-config)))
+      (is-true (find-if (lambda (e)
+                          (and (equal (cl-claw.config.validation:validation-error-code e)
+                                     "ALLOWFROM_REQUIRES_WILDCARD")))
+                        errors)))))
 
-(test dm-policy-validation-accepts-valid
-  "DM policy validation accepts valid policies"
-  (let ((valid-config (%hash "dmPolicy" "allow-all")))
-    ;; Should not signal error
-    (is-true (cl-claw.config.validation:validate-dm-policy valid-config))))
+(test dm-policy-validation-open-with-wildcard-succeeds
+  "DM policy 'open' with wildcard allowFrom passes validation"
+  (let ((valid-config (%hash "channels"
+                               (%hash "telegram"
+                                      (%hash "dmPolicy" "open"
+                                             "allowFrom" (list "*"))))))
+    ;; validate-config should return empty list for valid config
+    (is-true (null (cl-claw.config.validation:validate-config valid-config)))))
