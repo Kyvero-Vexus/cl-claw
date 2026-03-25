@@ -30,6 +30,13 @@
                    (:file "argv.test" :depends-on ("package"))
                    (:file "progress.test" :depends-on ("package"))
                    (:file "daemon-cli.test" :depends-on ("package"))))
+                 (:module "gateway"
+                  :depends-on ("acp")
+                  :components
+                  ((:file "package")
+                   (:file "server-auth.test" :depends-on ("package"))
+                   (:file "server-core.test" :depends-on ("package"))
+                   (:file "server-features.test" :depends-on ("package"))))
                  (:module "agents"
                   :depends-on ("acp" "config")
                   :components
@@ -77,6 +84,7 @@
              (uiop:symbol-call :fiveam :run! :cl-claw.acp.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.config.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.cli.tests)
+             (uiop:symbol-call :fiveam :run! :cl-claw.gateway.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.agents.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.channels.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.browser.tests)
