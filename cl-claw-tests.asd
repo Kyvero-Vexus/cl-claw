@@ -23,6 +23,13 @@
                    (:file "merge-patch.test" :depends-on ("package"))
                    (:file "schema.test" :depends-on ("package"))
                    (:file "sessions.test" :depends-on ("package"))))
+                 (:module "cli"
+                  :depends-on ("acp")
+                  :components
+                  ((:file "package")
+                   (:file "argv.test" :depends-on ("package"))
+                   (:file "progress.test" :depends-on ("package"))
+                   (:file "daemon-cli.test" :depends-on ("package"))))
                  (:module "agents"
                   :depends-on ("acp" "config")
                   :components
@@ -69,6 +76,7 @@
   :perform (test-op (o s)
              (uiop:symbol-call :fiveam :run! :cl-claw.acp.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.config.tests)
+             (uiop:symbol-call :fiveam :run! :cl-claw.cli.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.agents.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.channels.tests)
              (uiop:symbol-call :fiveam :run! :cl-claw.browser.tests)
